@@ -1,4 +1,0 @@
-
-błędy:
- * nie przełączy się, jeśli nie ma żadnego aktywnego połączenia (bo finalizacja przełączenia jest w zamknięciu połączenia)
- * można wcisnąć ctrl-c w trakcie switch-a, co wtedy?

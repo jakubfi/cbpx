@@ -10,6 +10,8 @@ l = logging.getLogger('network')
 l.setLevel(logging.__dict__["_levelNames"][params.log_level])
 
 conn_q = Queue()
+relay = Event()
+switch_finish = Lock()
 
 # ------------------------------------------------------------------------
 def test_connection(ip, port):
@@ -30,11 +32,19 @@ def test_connection(ip, port):
 
     return sv
 
+# --------------------------------------------------------------------
+def check_if_no_connections():
+    if cbpx_transporter.c_transporters == 0:
+        l.debug("No more connections")
+        if not relay.is_set():
+            l.debug("We were switching, so switch is done.")
+            cbpx_connector.backend = int(not cbpx_connector.backend)
+            relay.set()
+
 # ------------------------------------------------------------------------
 class cbpx_transporter(Thread):
 
     c_transporters = 0
-    lock_c_transporters = Lock()
     c_opened_conns = 0
     c_closed_conns = 0
 
@@ -45,10 +55,8 @@ class cbpx_transporter(Thread):
         self.sock_from = sock_from
         self.sock_to = sock_to
 
-        cbpx_transporter.lock_c_transporters.acquire()
         cbpx_transporter.c_transporters += 1
         cbpx_transporter.c_opened_conns += 1
-        cbpx_transporter.lock_c_transporters.release()
 
     # --------------------------------------------------------------------
     def run(self):
@@ -73,10 +81,11 @@ class cbpx_transporter(Thread):
         except Exception, e:
             l.error("The other transporter shutdown failed: %s" % str(e))
 
-        cbpx_transporter.lock_c_transporters.acquire()
+        switch_finish.acquire()
         cbpx_transporter.c_transporters -= 1
         cbpx_transporter.c_closed_conns += 1
-        cbpx_transporter.lock_c_transporters.release()
+        check_if_no_connections()
+        switch_finish.release()
 
 # ------------------------------------------------------------------------
 class cbpx_listener(Thread):
@@ -117,11 +126,24 @@ class cbpx_listener(Thread):
 		break
 
             l.info("New connection from: %s" % str(n_addr))
+
             try:
                 conn_q.put([n_sock, n_addr], False)
                 cbpx_listener.c_queued_conns += 1
+                l.debug("Enqueued connection: %s" % str(n_addr))
+
+                # if there are more queued connections than allowed
+                if conn_q.qsize() > int(params.max_conn):
+                    l.warning("Queued %i connections, limit is %i" % (conn_q.qsize(), int(params.max_conn)))
+                    switch_finish.acquire()
+                    if not relay.is_set():
+                        l.info("Relaying enable")
+                        relay.set()
+                    switch_finish.release()
+
             except Full:
-                l.warning("Queue full!")
+                l.error("Queue full!")
+
             except Exception, e:
                 l.warning("Exception during connection enqueue: %s" % str(e))
         l.info("Exiting listener loop")
@@ -136,10 +158,11 @@ class cbpx_connector(Thread):
     quit = 0
 
     # --------------------------------------------------------------------
-    def __init__(self, backends, name):
-        Thread.__init__(self, name=name)
+    def __init__(self, backends):
+        Thread.__init__(self, name="Connector")
         l.info("Initializing connector")
         cbpx_connector.backends = backends
+        relay.set()
 
     # --------------------------------------------------------------------
     def close(self):
@@ -174,12 +197,16 @@ class cbpx_connector(Thread):
     def run(self):
         l.info("Running connector")
         while True:
+            l.debug("Waiting until relay event is set")
+            relay.wait()
             l.debug("Trying to get connection from queue...")
             try:
                 i = conn_q.get(True, 1)
                 cbpx_connector.c_dequeued_conns += 1
                 l.info("Dequeue connection: %s (%i in queue)" % (str(i[1]), conn_q.qsize()))
+                switch_finish.acquire()
                 self.process_connection(i[0], i[1])
+                switch_finish.release()
                 conn_q.task_done()
             except Empty:
                 l.debug("Connection queue empty")
