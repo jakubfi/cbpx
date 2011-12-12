@@ -66,10 +66,16 @@ class ui_net(ui):
         return line
 
     def write(self, text):
-        self.rc_conn.send(text + "\n")
-        pass
+        try:
+            self.rc_conn.send(text + "\n")
+        except:
+            # we couldn't send command output. so what?
+            pass
 
     def finish(self):
         self.rc_conn.shutdown(SHUT_RDWR)
         self.rc_conn.close()
 
+
+
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4

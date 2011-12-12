@@ -4,8 +4,5 @@ bugs:
 
 * czas w pętli switch jest źle liczony
 * 'set' używa print_cfg(), a w kontekście RC nie powinien
-* handle ctrl-c in network mode properly...
 * jak się ma zachować w commandline mode a jak w daemon mode? kiedy wyświetlać konfigurację?
-* obsługa błędów w remote control
 * z check backends trzeba coś zrobić
-* 'stats' powinien mieć ilość pętli, jak vmstat

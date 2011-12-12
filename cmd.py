@@ -17,14 +17,13 @@ class cmd_runner:
             'quit' : [self.cmd_quit, "Kill the kitten"],
             'threads' : [self.cmd_threads, "List alive threads"],
             'switch' : [self.cmd_switch, "Summon All Demons of Evil"],
-            'stats' : [self.cmd_stats, "Print current statistics (stats [SLEEP])"],
+            'stats' : [self.cmd_stats, "Print current statistics (stats [SLEEP] [COUNT])"],
             'set' : [self.cmd_set, "Show/set variables (set PARAMETER VALUE)"],
             'hello' : [self.cmd_hello, "Be polite, say hello"]
         }
 
     # --------------------------------------------------------------------
     def cmd_help(self, args):
-        l.debug("Processing command")
         self.ui.write("\n Available commands:\n")
         for c in sorted(self.commands.keys()):
             self.ui.write("   %-10s : %s " % (c, self.commands[c][1]))
@@ -32,7 +31,6 @@ class cmd_runner:
 
     # --------------------------------------------------------------------
     def cmd_quit(self, args):
-        l.debug("Processing command")
         if (cbpx_transporter.c_transporters > 0):
             self.ui.write(" I won't quit with active connections. See stats.")
             return
@@ -44,10 +42,9 @@ class cmd_runner:
 
     # --------------------------------------------------------------------
     def cmd_threads(self, args):
-        l.debug("Processing command")
-
         workers = 0
         threads = ""
+
         for t in threading.enumerate():
             if t.getName().startswith("Thread-"):
                 workers += 1
@@ -58,14 +55,10 @@ class cmd_runner:
 
     # --------------------------------------------------------------------
     def cmd_switch(self, args):
-        l.debug("Processing command")
-
         active = cbpx_connector.backend
         standby = int(not cbpx_connector.backend)
 
-        self.ui.write("")
-        self.ui.write(" Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
-        self.ui.write("")
+        self.ui.write("\n Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer\n" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
         l.info("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
 
         old_backend = cbpx_connector.backend
@@ -154,18 +147,27 @@ class cmd_runner:
 
     # --------------------------------------------------------------------
     def cmd_stats(self, args):
-        l.debug("Processing command")
+
+        try:
+            maxloop = int(args[1])
+        except:
+            maxloop = 0
 
         e = threading.Event()
         cnt = 0
+
         while True:
             e.clear()
-            if not cnt % 50: self.print_stats(True, -1)
-            else: self.print_stats(False, -1)
+            if not cnt % 50:
+                self.print_stats(True, -1)
+            else:
+                self.print_stats(False, -1)
             cnt += 1
             try:
                 threading.Timer(float(args[0]), e.set).start()
                 e.wait()
+                if maxloop and cnt >= maxloop:
+                    break
             except Exception, e:
                 l.debug("Exception in 'stats' loop: %s, break" % str(e))
                 break
@@ -175,8 +177,6 @@ class cmd_runner:
 
     # --------------------------------------------------------------------
     def cmd_set(self, args):
-        l.debug("Processing command")
-
         # no arguments = prit current settings
         if len(args) == 0:
             print_cfg()
@@ -199,21 +199,19 @@ class cmd_runner:
             return
 
         # everything looks fine, set the parameter
-
         l.info("Setting '%s' to '%s'" % (args[0], args[1]))
         try:
             params.__dict__[args[0]] = args[1]
         except Exception, e:
             self.ui.write(" Could not set parameter '%s' to '%s', error: %s" % (args[0], args[1], str(e)))
             l.warning("Could not set parameter '%s' to '%s', error: %s" % (args[0], args[1], str(e)))
-            raise e
+            return
+
         self.ui.write(" Parameter '%s' set to '%s' " % (args[0], params.__dict__[args[0]]))
 
     # --------------------------------------------------------------------
     def cmd_hello(self, args):
-        l.debug("Processing command")
-        self.ui.write(" Hello! I'm cbpx %s" % __version__)
-
+        self.ui.write(" Hello! I'm cbpx %s. And you look great today, I must say." % __version__)
    
     # --------------------------------------------------------------------
     def process_command(self):
