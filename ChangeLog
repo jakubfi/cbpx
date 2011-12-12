@@ -4,6 +4,7 @@
 * initial remote control
 * command interface reworked for remote control
 * connector started before listener
+* git import, automated versioning (based on git branch), release tool
 
 0.2.8
 
