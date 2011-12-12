@@ -1,0 +1,23 @@
+#!/usr/bin/python
+
+import _mysql
+import threading
+import time
+import random
+
+class naparzacz(threading.Thread):
+	def run(self):
+		while True:
+			print "new connection"
+			db = _mysql.connect(host="127.0.0.1", port=4406, user="sbtest", passwd="sbtest", db="sbtest")
+			t = random.randint(0, 10) / 10.0
+			print "waiting " + str(t)
+			time.sleep(t)
+			print "closing"
+			db.close()
+
+
+random.seed()
+
+for i in range(1,100):
+	naparzacz().start()

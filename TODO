@@ -1,0 +1,9 @@
+do sparametryzowania:
+ backlog
+ buffer size
+ max threads?
+ plik log-a
+ poziom logowania (modulow?)
+ timeout na get() z kolejki
+ dodatkowy czas na podgonienie synchronizacji tuż przed puszczeniem pierwszego połączenia na nową bazę
+ sleep między checkami w switchu
