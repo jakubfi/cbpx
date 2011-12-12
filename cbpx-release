@@ -1,0 +1,14 @@
+#!/bin/bash
+
+REPO=/home/amo/projekty/cbpx-git
+VERSION=$1
+
+if [ -z "$VERSION" ] ; then
+	echo "use: $0 branch"
+	exit 1
+fi
+
+git clone $REPO -b $VERSION cbpx-$VERSION
+rm -rf cbpx-$VERSION/.git
+sed -i s/__cbpx__version__/$VERSION/g cbpx-$VERSION/utils.py
+tar czf cbpx-$VERSION.tar.gz cbpx-$VERSION
