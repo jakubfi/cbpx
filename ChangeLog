@@ -1,10 +1,14 @@
 0.2.9
 
 * log level changes (important messages are INFO/WARNING now)
-* initial remote control
+* TCP remote control
 * command interface reworked for remote control
 * connector started before listener
 * git import, automated versioning (based on git branch), release tool
+
+0.2.9-pre
+
+* quick initial remote control for Karol's tests
 
 0.2.8
 
