@@ -1,14 +1,9 @@
-import sys
-import time
 import readline
 import logging
 import threading
 
 from network import *
 from utils import *
-
-l = logging.getLogger('cmdline')
-l.setLevel(logging.__dict__["_levelNames"][params.log_level])
 
 # ------------------------------------------------------------------------
 def cmd_help(args):
@@ -50,9 +45,9 @@ def cmd_switch(args):
     standby = int(not cbpx_connector.backend)
 
     print
-    print " Starting switch: %s:%i -> %s:%i, timeout: %2.2f s" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.max_time))
+    print " Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.max_time), int(params.max_conn))
     print
-    l.debug("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.max_time)))
+    l.debug("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.max_time), int(params.max_conn)))
 
     old_backend = cbpx_connector.backend
 

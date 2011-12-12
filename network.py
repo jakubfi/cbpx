@@ -1,13 +1,10 @@
-import sys
 import time
 import logging
 from socket import *
 from threading import Thread, Event, Lock
 from Queue import *
-from utils import params
 
-l = logging.getLogger('network')
-l.setLevel(logging.__dict__["_levelNames"][params.log_level])
+from utils import params, l
 
 conn_q = Queue()
 relay = Event()
@@ -39,6 +36,8 @@ def check_if_no_connections():
         if not relay.is_set():
             l.debug("We were switching, so switch is done.")
             cbpx_connector.backend = int(not cbpx_connector.backend)
+            l.debug("Sleeping %2.2f before finishing switch" % float(switch_delay))
+            time.sleep(float(switch_delay))
             relay.set()
 
 # ------------------------------------------------------------------------
@@ -127,25 +126,31 @@ class cbpx_listener(Thread):
 
             l.info("New connection from: %s" % str(n_addr))
 
+            # if there are more queued connections than allowed
+            if conn_q.qsize() >= int(params.max_conn):
+                l.warning("Queued %i connections, limit is %i" % (conn_q.qsize(), int(params.max_conn)))
+                switch_finish.acquire()
+                if not relay.is_set():
+                    l.info("Enabling relaying")
+                    relay.set()
+                switch_finish.release()
+
             try:
                 conn_q.put([n_sock, n_addr], False)
                 cbpx_listener.c_queued_conns += 1
                 l.debug("Enqueued connection: %s" % str(n_addr))
 
-                # if there are more queued connections than allowed
-                if conn_q.qsize() > int(params.max_conn):
-                    l.warning("Queued %i connections, limit is %i" % (conn_q.qsize(), int(params.max_conn)))
-                    switch_finish.acquire()
-                    if not relay.is_set():
-                        l.info("Relaying enable")
-                        relay.set()
-                    switch_finish.release()
-
             except Full:
-                l.error("Queue full!")
+                l.error("Queue is full with %i elements!" % conn_q.qsize())
+                switch_finish.acquire()
+                if not relay.is_set():
+                    l.info("Enabling relaying")
+                    relay.set()
+                switch_finish.release()
 
             except Exception, e:
                 l.warning("Exception during connection enqueue: %s" % str(e))
+
         l.info("Exiting listener loop")
 
 
