@@ -24,7 +24,7 @@ def cmd_quit(args):
     if (cbpx_transporter.c_transporters > 0):
         print " I won't quit with active connections. See stats."
         return
-    if (cbpx_listener.conn_q.qsize() > 0):
+    if (conn_q.qsize() > 0):
         print " I won't quit with connections in queue. See stats."
         return
     print " Exiting..."
@@ -45,72 +45,20 @@ def cmd_threads(args):
 # ------------------------------------------------------------------------
 def cmd_switch(args):
     l.debug("Processing command")
-    if cbpx_listener.backend == 1:
-        print " I think we did that already."
-        return
-    lock_connection.acquire()
-    cbpx_listener.is_switch = 1
-    lock_connection.release()
-    l.info("Switch initiated, Waiting for connections to finish")
-
-    print " Waiting for connections to finish"
-    waited = 0
-    while (waited < float(params.max_time)):
-        time.sleep(float(params.switch_loop_wait))
-        waited += float(params.switch_loop_wait)
-        print " connections active/queued: %4i/%-4i switch time: %2.1f" % (cbpx_transporter.c_transporters, cbpx_listener.conn_q.qsize(), waited)
-        lock_connection.acquire()
-        if (cbpx_listener.is_switch == 0):
-            lock_connection.release()
-            l.info("Switch terminated while waiting")
-            if cbpx_listener.backend == 1:
-                print " Backend switched"
-                l.info("Switch finished successfully while waiting")
-            else:
-                print " Switch failed (connection queue full)"
-                l.warning("Switch failed while waiting")
-            break
-        lock_connection.release()
-
-    l.debug("Outside switch wait loop")
-
-    if (waited >= float(params.max_time)):
-        print " Switch timed out"
-        l.info("Switch timed out")
-        lock_connection.acquire()
-        if (cbpx_listener.is_switch == 0):
-            l.debug("Switch finished just after timeout")
-            if cbpx_listener.backend == 1:
-                print " But we managed to switch in the meantime :-)"
-                l.info("Looks like switch went fine")
-            else:
-                print " Switch failed"
-                l.warning("Switch failed after the wait loop")
-        else:
-            print " Switch failed after the timeout"
-            l.warning("Switch failed after the timeout")
-            cbpx_listener.is_switch = 0
-        lock_connection.release()
-        do_flush.set()
-    else:
-        l.info("Switch finished in: %f seconds, limit was: %f" % (waited, params.max_time))
-
-    l.debug("Leaving switch block")
 
 # ------------------------------------------------------------------------
 def cmd_stats(args):
     l.debug("Processing command")
 
     e = threading.Event()
-
+    cnt = 0
     while True:
         e.clear()
-        print " Backend           : %s:%s" % (cbpx_listener.backends[cbpx_listener.backend]["ip"], cbpx_listener.backends[cbpx_listener.backend]["port"])
-        print " Active transports : %i (%i connections)" % (cbpx_transporter.c_transporters, cbpx_transporter.c_transporters/2)
-        print " Currently queued  : %i" % cbpx_listener.conn_q.qsize()
-        print " Total relayed     : %i" % cbpx_listener.c_all_conns
-        print " Total dequeued    : %i" % cbpx_flusher.c_all_conns
-        l.debug("Trying to sleep in stats loop")
+        if not cnt % 50:
+            print "Current backend       active in queue enqueued dequeued"
+            print "--------------------- ------ -------- -------- --------"
+        print "%-21s %6i %8i %8i %8i" % (cbpx_connector.backends[cbpx_connector.backend]["ip"] + str(cbpx_connector.backends[cbpx_connector.backend]["port"]), cbpx_transporter.c_transporters, conn_q.qsize(), cbpx_listener.c_queued_conns, cbpx_connector.c_dequeued_conns)
+        cnt += 1
         try:
             threading.Timer(float(args[0]), e.set).start()
             e.wait()
@@ -124,21 +72,10 @@ def cmd_stats(args):
 # ------------------------------------------------------------------------
 def cmd_queue(args):
     l.debug("Processing command")
-    print " Now queuing connections"
-    lock_connection.acquire()
-    cbpx_listener.is_switch = 2
-    lock_connection.release()
-    l.info("Queuing started")
 
 # ------------------------------------------------------------------------
 def cmd_dequeue(args):
     l.debug("Processing command")
-    print " Now dequeuing connections"
-    lock_connection.acquire()
-    cbpx_listener.is_switch = 0
-    lock_connection.release()
-    do_flush.set()
-    l.info("Queuing stopped")
 
 # ------------------------------------------------------------------------
 def cmd_set(args):

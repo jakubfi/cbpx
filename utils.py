@@ -1,6 +1,6 @@
 import optparse
 
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 
 # ------------------------------------------------------------------------
 class my_params:
@@ -15,7 +15,7 @@ class my_params:
     active_port = ''
     standby_ip = ''
     standby_port = ''
-    listen_backlog = '512'
+    listen_backlog = '1024'
     net_buffer_size = '2048'
 
     # switch:

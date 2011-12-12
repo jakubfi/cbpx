@@ -9,8 +9,7 @@ from utils import params
 l = logging.getLogger('network')
 l.setLevel(logging.__dict__["_levelNames"][params.log_level])
 
-lock_connection = Lock()
-do_flush = Event()
+conn_q = Queue()
 
 # ------------------------------------------------------------------------
 def test_connection(ip, port):
@@ -35,6 +34,7 @@ def test_connection(ip, port):
 class cbpx_transporter(Thread):
 
     c_transporters = 0
+    lock_c_transporters = Lock()
 
     # --------------------------------------------------------------------
     def __init__(self, sock_from, sock_to):
@@ -43,24 +43,9 @@ class cbpx_transporter(Thread):
         self.sock_from = sock_from
         self.sock_to = sock_to
 
+        cbpx_transporter.lock_c_transporters.acquire()
         cbpx_transporter.c_transporters += 1
-
-    # --------------------------------------------------------------------
-    def no_more_connections(self):
-        l.info("No more connections!")
-        # if we were switching
-        if cbpx_listener.is_switch:
-            # change backend after "safe-switch" sleep
-            l.debug("Safe-switch delay: %2.2f" % float(params.switch_delay))
-            time.sleep(float(params.switch_delay))
-            # only if real switch, '2' means queuing test
-            if cbpx_listener.is_switch == 1:
-                l.info("Finalize switch!")
-                cbpx_listener.backend = 1
-            # allow unqueued connections
-            cbpx_listener.is_switch = 0
-            # flush all connections from queue
-            do_flush.set()
+        cbpx_transporter.lock_c_transporters.release()
 
     # --------------------------------------------------------------------
     def run(self):
@@ -85,30 +70,20 @@ class cbpx_transporter(Thread):
         except Exception, e:
             l.error("The other transporter shutdown failed: %s" % str(e))
 
-        lock_connection.acquire()
+        cbpx_transporter.lock_c_transporters.acquire()
         cbpx_transporter.c_transporters -= 1
-        if cbpx_transporter.c_transporters == 0:
-            self.no_more_connections()
-        lock_connection.release()
+        cbpx_transporter.lock_c_transporters.release()
 
 # ------------------------------------------------------------------------
 class cbpx_listener(Thread):
 
-    c_all_conns = 0
-    is_switch = 0
-    backend = 0
-    backends = []
-    conn_q = Queue()
+    c_queued_conns = 0
 
     # --------------------------------------------------------------------
-    def __init__(self, port, backends):
+    def __init__(self, port):
         Thread.__init__(self, name="Listener")
-        l.info("Creating queue, size: %i " % int(params.max_conn))
-        cbpx_listener.conn_q = Queue(int(params.max_conn))
-        l.info("Initializing connector")
-        cbpx_listener.backends = backends
 
-        l.debug("Setting up listener socket (backlog: %i)" % int(params.listen_backlog))
+        l.info("Setting up listener (backlog: %i)" % int(params.listen_backlog))
         try:
             self.sock = socket(AF_INET, SOCK_STREAM)
             self.sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
@@ -126,47 +101,6 @@ class cbpx_listener(Thread):
         l.info("Listener closed")
 
     # --------------------------------------------------------------------
-    def buffer_connection(self, n_sock, n_addr):
-        l.info("Buffering new connection from: %s" % str(n_addr))
-        try:
-            cbpx_listener.conn_q.put([n_sock, n_addr], False)
-        except Full:
-            l.warning("Queue full, aborting!")
-            cbpx_listener.is_switch = 0
-            do_flush.set()
-            l.info("Processing unqueued connection")
-            self.process_connection(n_sock, n_addr)
-
-    # --------------------------------------------------------------------
-    def process_connection(self, n_sock, n_addr):
-        l.info("Processing new connection from: %s" % str(n_addr))
-
-        cbpx_listener.c_all_conns += 1
-
-        try:
-            fwd_sock = socket(AF_INET, SOCK_STREAM)
-            ip = cbpx_listener.backends[cbpx_listener.backend]["ip"]
-            port = cbpx_listener.backends[cbpx_listener.backend]["port"]
-            fwd_sock.connect((ip, port))
-        except IOError, (errno, strerror):
-            l.error("Error extablishing connection to backend: I/O error(%i): %s" % (errno, strerror))
-            n_sock.close()
-            return
-        except Exception, e:
-            l.error("Exception while extablishing connection to backend: " + str(e))
-            n_sock.close()
-            return
-
-        # spawn proxy threads
-        try:
-            cbpx_transporter(n_sock, fwd_sock).start()
-            cbpx_transporter(fwd_sock, n_sock).start()
-        except Exception, e:
-            l.error("Error spawning connection threads: " + str(e))
-            n_sock.close()
-
-
-    # --------------------------------------------------------------------
     def run(self):
         l.info("Running listener")
         while True:
@@ -178,42 +112,43 @@ class cbpx_listener(Thread):
                 l.error("Error accepting connection: " + str(e))
 		break
 
-            l.debug("New connection")
-
-            lock_connection.acquire()
-            if not cbpx_listener.is_switch:
-                self.process_connection(n_sock, n_addr)
-            else:
-                self.buffer_connection(n_sock, n_addr)
-            lock_connection.release()
+            l.info("New connection from: %s" % str(n_addr))
+            try:
+                conn_q.put([n_sock, n_addr], False)
+                cbpx_listener.c_queued_conns += 1
+            except Full:
+                l.warning("Queue full!")
+            except Exception, e:
+                l.warning("Exception during connection enqueue: %s" % str(e))
         l.info("Exiting listener loop")
 
 
 # ------------------------------------------------------------------------
-class cbpx_flusher(Thread):
+class cbpx_connector(Thread):
 
-    c_all_conns = 0
+    c_dequeued_conns = 0
+    backends = []
+    backend = 0
+    quit = 0
 
     # --------------------------------------------------------------------
-    def __init__(self):
-        Thread.__init__(self, name="Flusher")
-        l.info("Initializing flusher")
-        self.quit = 0
+    def __init__(self, backends):
+        Thread.__init__(self, name="Connector")
+        l.info("Initializing connector")
+        cbpx_connector.backends = backends
 
     # --------------------------------------------------------------------
     def close(self):
-        self.quit = 1
+        cbpx_connector.quit = 1
 
     # --------------------------------------------------------------------
     def process_connection(self, n_sock, n_addr):
-        l.info("Processing queued connection from: %s" % str(n_addr))
-
-        cbpx_flusher.c_all_conns += 1
+        l.debug("Processing connection from: %s" % str(n_addr))
 
         try:
             fwd_sock = socket(AF_INET, SOCK_STREAM)
-            ip = cbpx_listener.backends[cbpx_listener.backend]["ip"]
-            port = cbpx_listener.backends[cbpx_listener.backend]["port"]
+            ip = cbpx_connector.backends[cbpx_connector.backend]["ip"]
+            port = cbpx_connector.backends[cbpx_connector.backend]["port"]
             fwd_sock.connect((ip, port))
         except IOError, (errno, strerror):
             l.error("Error extablishing connection to backend: I/O error(%i): %s" % (errno, strerror))
@@ -235,23 +170,20 @@ class cbpx_flusher(Thread):
 
     # --------------------------------------------------------------------
     def run(self):
-        while not self.quit:
-            l.info("Waiting for flush request")
-            do_flush.wait()
-            while True:
-                try:
-                    l.debug("Trying to get connection from queue...")
-                    i = cbpx_listener.conn_q.get(True, 0.1)
-                    l.info("Dequeue connection: %s (%i in queue)" % (str(i[1]), cbpx_listener.conn_q.qsize()))
-                    self.process_connection(i[0], i[1])
-                except Empty:
-                    l.info("Connection queue empty")
-                    lock_connection.acquire()
-                    if cbpx_listener.conn_q.empty():
-                        l.info("Connection queue really empty, pausing flusher")
-                        do_flush.clear()
-                    lock_connection.release()
+        l.info("Running connector")
+        while True:
+            l.debug("Trying to get connection from queue...")
+            try:
+                i = conn_q.get(True, 1)
+                cbpx_connector.c_dequeued_conns += 1
+                l.info("Dequeue connection: %s (%i in queue)" % (str(i[1]), conn_q.qsize()))
+                self.process_connection(i[0], i[1])
+                conn_q.task_done()
+            except Empty:
+                l.debug("Connection queue empty")
+                if cbpx_connector.quit:
+                    l.info("Breaking connector loop on quit")
                     break
-        l.debug("Exiting flusher loop")
+        l.debug("Exiting connector loop")
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
