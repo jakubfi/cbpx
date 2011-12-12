@@ -1,9 +1,4 @@
-do sparametryzowania:
- backlog
- buffer size
- max threads?
- plik log-a
- poziom logowania (modulow?)
- timeout na get() z kolejki
- dodatkowy czas na podgonienie synchronizacji tuż przed puszczeniem pierwszego połączenia na nową bazę
- sleep między checkami w switchu
+
+błędy:
+ * nie przełączy się, jeśli nie ma żadnego aktywnego połączenia (bo finalizacja przełączenia jest w zamknięciu połączenia)
+ * można wcisnąć ctrl-c w trakcie switch-a, co wtedy?

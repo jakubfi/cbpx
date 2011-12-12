@@ -8,16 +8,16 @@ import random
 class naparzacz(threading.Thread):
 	def run(self):
 		while True:
-			print "new connection"
+			#print "new connection"
 			db = _mysql.connect(host="127.0.0.1", port=4406, user="sbtest", passwd="sbtest", db="sbtest")
-			t = random.randint(0, 10) / 10.0
-			print "waiting " + str(t)
+			t = random.randint(0, 1) / 10.0
+			#print "waiting " + str(t)
 			time.sleep(t)
-			print "closing"
+			#print "closing"
 			db.close()
 
 
 random.seed()
 
-for i in range(1,100):
+for i in range(1,256):
 	naparzacz().start()

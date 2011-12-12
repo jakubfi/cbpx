@@ -5,10 +5,10 @@ import logging
 import threading
 
 from network import *
-from utils import params
+from utils import *
 
 l = logging.getLogger('cmdline')
-l.setLevel(logging.INFO)
+l.setLevel(logging.__dict__["_levelNames"][params.log_level])
 
 # ------------------------------------------------------------------------
 def cmd_help(args):
@@ -36,11 +36,11 @@ def cmd_threads(args):
     print " Threads: ",
     workers = 0
     for t in threading.enumerate():
-        if t.name.startswith("Thread-"):
+        if t.getName().startswith("Thread-"):
             workers += 1
         else:
-            print "%s," % t.name,
-    print "Workers: %i " % workers
+            print "%s," % t.getName(),
+    print "Transporters: %i " % workers
 
 # ------------------------------------------------------------------------
 def cmd_switch(args):
@@ -55,9 +55,9 @@ def cmd_switch(args):
 
     print " Waiting for connections to finish"
     waited = 0
-    while (waited < int(params["max_time"])):
-        time.sleep(0.1)
-        waited += 0.1
+    while (waited < float(params.max_time)):
+        time.sleep(float(params.switch_loop_wait))
+        waited += float(params.switch_loop_wait)
         print " connections active/queued: %4i/%-4i switch time: %2.1f" % (cbpx_transporter.c_transporters, cbpx_listener.conn_q.qsize(), waited)
         lock_connection.acquire()
         if (cbpx_listener.is_switch == 0):
@@ -74,7 +74,7 @@ def cmd_switch(args):
 
     l.debug("Outside switch wait loop")
 
-    if (waited >= int(params["max_time"])):
+    if (waited >= float(params.max_time)):
         print " Switch timed out"
         l.info("Switch timed out")
         lock_connection.acquire()
@@ -92,36 +92,34 @@ def cmd_switch(args):
             cbpx_listener.is_switch = 0
         lock_connection.release()
         do_flush.set()
+    else:
+        l.info("Switch finished in: %f seconds, limit was: %f" % (waited, params.max_time))
+
+    l.debug("Leaving switch block")
 
 # ------------------------------------------------------------------------
 def cmd_stats(args):
     l.debug("Processing command")
 
+    e = threading.Event()
+
     while True:
+        e.clear()
         print " Backend           : %s:%s" % (cbpx_listener.backends[cbpx_listener.backend]["ip"], cbpx_listener.backends[cbpx_listener.backend]["port"])
         print " Active transports : %i (%i connections)" % (cbpx_transporter.c_transporters, cbpx_transporter.c_transporters/2)
         print " Currently queued  : %i" % cbpx_listener.conn_q.qsize()
         print " Total relayed     : %i" % cbpx_listener.c_all_conns
         print " Total dequeued    : %i" % cbpx_flusher.c_all_conns
+        l.debug("Trying to sleep in stats loop")
         try:
-            time.sleep(float(args[0]))
-        except:
+            threading.Timer(float(args[0]), e.set).start()
+            e.wait()
+        except Exception, e:
+            l.debug("Exception in 'stats' loop: %s, break" % str(e))
             break
-
-# ------------------------------------------------------------------------
-def cmd_set(args):
-    l.debug("Processing command")
-    if (len(args) == 0):
-        for i in sorted(params.keys()):
-            print " %s = %s" % (i, params[i])
-        return
-    if (len(args) != 2):
-        print " Use: set PARAM VALUE"
-        return
-    if args[0] not in params.keys():
-        print "You may only set one of: %s" % str(params.keys())
-        return
-    params[args[0]] = args[1]
+        except KeyboardInterrupt:
+            l.debug("Ctrl-C in stats loop, break")
+            break
 
 # ------------------------------------------------------------------------
 def cmd_queue(args):
@@ -143,15 +141,45 @@ def cmd_dequeue(args):
     l.info("Queuing stopped")
 
 # ------------------------------------------------------------------------
+def cmd_set(args):
+    l.debug("Processing command")
+
+    if len(args) == 0:
+        print_cfg()
+        print "Settable: %s" % str(params.settable)
+        return
+    
+    if len(args) != 2:
+        print "Use: 'set PARAMETER VALUE' to change setting"
+        return
+
+    if not hasattr(params, args[0]):
+        print " No such parameter: %s" % args[0]
+        return
+
+    if args[0] not in params.settable:
+        print " Paremeter is not settable: %s" % args[0]
+        return
+
+    l.debug("Setting '%s' to '%s'" % (args[0], args[1]))
+    try:
+        params.__dict__[args[0]] = args[1]
+    except Exception, e:
+        print " Could not set parameter '%s' to '%s', error: %s" % (args[0], args[1], str(e))
+        l.warning("Could not set parameter '%s' to '%s', error: %s" % (args[0], args[1], str(e)))
+        raise e
+    print " Parameter '%s' set to '%s' " % (args[0], params.__dict__[args[0]])
+
+# ------------------------------------------------------------------------
 commands = {
     'help' : [cmd_help, "Print this help"],
     'quit' : [cmd_quit, "Kill the kitten"],
     'threads' : [cmd_threads, "List alive threads"],
     'switch' : [cmd_switch, "Summon All Demons of Evil"],
     'stats' : [cmd_stats, "Print current network statistics (stats [SLEEP])"],
-    'set' : [cmd_set, "Set a parameter (set [PARAM VALUE])"],
     'queue': [cmd_queue, "Start queuing connections (for test purposes only)"],
-    'dequeue': [cmd_dequeue, "Start dequeuing connections (for test purposes only)"]
+    'dequeue': [cmd_dequeue, "Start dequeuing connections (for test purposes only)"],
+    'set' : [cmd_set, "Show/set variables (set PARAMETER VALUE)"]
 }
 
 # ------------------------------------------------------------------------

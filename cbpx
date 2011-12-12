@@ -12,31 +12,57 @@ from network import *
 # --- MAIN ---------------------------------------------------------------
 # ------------------------------------------------------------------------
 
-FORMAT = '%(asctime)-15s %(levelname)-7s [%(threadName)-10s] (%(module)s::%(funcName)s) [L:%(lineno)d] %(message)s'
-logging.basicConfig(format=FORMAT, filename="cbpx.log")
-l = logging.getLogger('cbpx')
-l.setLevel(logging.INFO)
-
-l.info("Startup")
-
+# parse command line options
 try:
-    cfg = parse_cmdline()
-    backends = [{"ip":cfg.active_ip, "port":cfg.active_port}, {"ip":cfg.standby_ip, "port":cfg.standby_port}]
+    parse_cmdline()
 except Exception, e:
     print "Error parsing command line: " + str(e)
     sys.exit(1)
 
-conn = cbpx_listener(cfg.port, backends)
-flush = cbpx_flusher()
+FORMAT = '%(asctime)-15s %(levelname)-7s [%(threadName)-10s] (%(module)s::%(funcName)s) [L:%(lineno)d] %(message)s'
+logging.basicConfig(format=FORMAT, filename=params.log_file)
+l = logging.getLogger('cbpx')
+l.setLevel(logging.__dict__["_levelNames"][params.log_level])
 
-conn.start()
-flush.start()
+l.info("Startup")
 
 print_logo()
-print_cfg(cfg)
+print_cfg()
+
+# check backends
+success = 1
+try:
+    v_active = test_connection(params.active_ip, params.active_port)
+    print " Active backend server version: %s" % v_active
+except Exception, e:
+    print " Error connecting to active backend: %s " % str(e)
+    success = 0
+try:
+    v_standby = test_connection(params.standby_ip, params.standby_port)
+    print " Standby backend server version: %s" % v_standby
+except Exception, e:
+    print " Error connecting to standby backend: %s " % str(e)
+    success = 0
+
+if not success:
+    print " Exiting due to backend connection errors."
+    sys.exit(1)
+
+# start proxy
+try:
+    backends = [{"ip":params.active_ip, "port":params.active_port}, {"ip":params.standby_ip, "port":params.standby_port}]
+    conn = cbpx_listener(params.port, backends)
+    flush = cbpx_flusher()
+    conn.start()
+    flush.start()
+except Exception, e:
+    print "Error starting listener/flusher threads: %s" % str(e)
+    l.error("Error starting listener/flusher threads: %s" % str(e))
+    sys.exit(1)
 
 l.info("Entering commandline loop")
 
+print
 while True:
     if process_command(): break
 

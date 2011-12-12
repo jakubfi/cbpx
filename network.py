@@ -7,11 +7,29 @@ from Queue import *
 from utils import params
 
 l = logging.getLogger('network')
-l.setLevel(logging.INFO)
+l.setLevel(logging.__dict__["_levelNames"][params.log_level])
 
 lock_connection = Lock()
-
 do_flush = Event()
+
+# ------------------------------------------------------------------------
+def test_connection(ip, port):
+    test_sock = socket(AF_INET, SOCK_STREAM)
+    test_sock.settimeout(1)
+
+    try:
+        test_sock.connect((ip, port))
+    except Exception, e:
+        test_sock.close()
+        raise IOError("can't connect: %s" % str(e))
+    try:
+        data = test_sock.recv(int(params.net_buffer_size))
+        sv = data[5:].split("\0")[0]
+    except Exception, e:
+        test_sock.close()
+        raise IOError("didn't get server version: %s" % str(e))
+
+    return sv
 
 # ------------------------------------------------------------------------
 class cbpx_transporter(Thread):
@@ -28,11 +46,28 @@ class cbpx_transporter(Thread):
         cbpx_transporter.c_transporters += 1
 
     # --------------------------------------------------------------------
+    def no_more_connections(self):
+        l.info("No more connections!")
+        # if we were switching
+        if cbpx_listener.is_switch:
+            # change backend after "safe-switch" sleep
+            l.debug("Safe-switch delay: %2.2f" % float(params.switch_delay))
+            time.sleep(float(params.switch_delay))
+            # only if real switch, '2' means queuing test
+            if cbpx_listener.is_switch == 1:
+                l.info("Finalize switch!")
+                cbpx_listener.backend = 1
+            # allow unqueued connections
+            cbpx_listener.is_switch = 0
+            # flush all connections from queue
+            do_flush.set()
+
+    # --------------------------------------------------------------------
     def run(self):
         l.debug("Running transporter loop")
         while 1:
             try:
-                data = self.sock_from.recv(1024)
+                data = self.sock_from.recv(int(params.net_buffer_size))
                 if not data:
                     l.debug("Transporter endpoint closed")
                     break
@@ -40,31 +75,20 @@ class cbpx_transporter(Thread):
             except Exception, e:
                 l.error("Exception in transporter loop: %s" % str(e))
                 break
+
         l.debug("Exiting transporter loop")
+
         try:
             self.sock_to.shutdown(SHUT_RDWR)
-        except IOError as (errno, strerror):
+        except IOError, (errno, strerror):
             l.error("The other transporter shutdown failed: I/O error(%i): %s" % (errno, strerror))
         except Exception, e:
             l.error("The other transporter shutdown failed: %s" % str(e))
 
         lock_connection.acquire()
         cbpx_transporter.c_transporters -= 1
-        # if no more connections
         if cbpx_transporter.c_transporters == 0:
-            l.info("No more connections!")
-            # if we were switching
-            if cbpx_listener.is_switch:
-                # change backend after "slave safe" sleep
-                time.sleep(0.3)
-                # only if real switch, '2' means queuing test
-                if cbpx_listener.is_switch == 1:
-                    l.info("Finalize switch!")
-                    cbpx_listener.backend = 1
-                # allow unqueued connections
-                cbpx_listener.is_switch = 0
-                # flush all connections from queue
-                do_flush.set()
+            self.no_more_connections()
         lock_connection.release()
 
 # ------------------------------------------------------------------------
@@ -79,20 +103,21 @@ class cbpx_listener(Thread):
     # --------------------------------------------------------------------
     def __init__(self, port, backends):
         Thread.__init__(self, name="Listener")
-        l.info("Creating queue, size: %s " % str(params["max_conn"]))
-        cbpx_listener.conn_q = Queue(int(params["max_conn"]))
+        l.info("Creating queue, size: %i " % int(params.max_conn))
+        cbpx_listener.conn_q = Queue(int(params.max_conn))
         l.info("Initializing connector")
         cbpx_listener.backends = backends
 
-        l.debug("Setting up listener socket")
+        l.debug("Setting up listener socket (backlog: %i)" % int(params.listen_backlog))
         try:
             self.sock = socket(AF_INET, SOCK_STREAM)
             self.sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
             self.sock.bind(('', port))
-            self.sock.listen(20)
+            self.sock.listen(int(params.listen_backlog))
         except Exception, e:
             l.error("Could not create listener: %s" % str(e))
-    
+            raise IOError("Could not create listener: %s" % str(e))
+
     # --------------------------------------------------------------------
     def close(self):
         l.info("Shutting down listener")
@@ -123,7 +148,7 @@ class cbpx_listener(Thread):
             ip = cbpx_listener.backends[cbpx_listener.backend]["ip"]
             port = cbpx_listener.backends[cbpx_listener.backend]["port"]
             fwd_sock.connect((ip, port))
-        except IOError as (errno, strerror):
+        except IOError, (errno, strerror):
             l.error("Error extablishing connection to backend: I/O error(%i): %s" % (errno, strerror))
             n_sock.close()
             return
@@ -149,13 +174,9 @@ class cbpx_listener(Thread):
 
             try:
                 (n_sock, n_addr) = self.sock.accept()
-            except IOError as (errno, strerror):
-                if errno == 22:
-                    l.debug("Looks like socket shutdown")
-                    break
-                l.error("Error accepting connection: I/O error(%i): %s" % (errno, strerror))
             except Exception, e:
                 l.error("Error accepting connection: " + str(e))
+		break
 
             l.debug("New connection")
 
@@ -194,7 +215,7 @@ class cbpx_flusher(Thread):
             ip = cbpx_listener.backends[cbpx_listener.backend]["ip"]
             port = cbpx_listener.backends[cbpx_listener.backend]["port"]
             fwd_sock.connect((ip, port))
-        except IOError as (errno, strerror):
+        except IOError, (errno, strerror):
             l.error("Error extablishing connection to backend: I/O error(%i): %s" % (errno, strerror))
             n_sock.close()
             return
@@ -221,7 +242,7 @@ class cbpx_flusher(Thread):
                 try:
                     l.debug("Trying to get connection from queue...")
                     i = cbpx_listener.conn_q.get(True, 0.1)
-                    l.info("Processing connection from queue: %s (%i left)" % (str(i[1]), cbpx_listener.conn_q.qsize()))
+                    l.info("Dequeue connection: %s (%i in queue)" % (str(i[1]), cbpx_listener.conn_q.qsize()))
                     self.process_connection(i[0], i[1])
                 except Empty:
                     l.info("Connection queue empty")
