@@ -33,11 +33,14 @@ def test_connection(ip, port):
 def check_if_no_connections():
     if cbpx_transporter.c_transporters == 0:
         l.debug("No more connections")
-        if not relay.is_set():
+        # stopped relaying means we're switching backends
+        if not relay.isSet():
             l.debug("We were switching, so switch is done.")
+            # change backend first
             cbpx_connector.backend = int(not cbpx_connector.backend)
             l.debug("Sleeping %2.2f before finishing switch" % float(params.switch_delay))
             time.sleep(float(params.switch_delay))
+            # let the connections be established
             relay.set()
 
 # ------------------------------------------------------------------------
@@ -119,6 +122,7 @@ class cbpx_listener(Thread):
             l.debug("Awaiting new connection")
 
             try:
+                # wait for new connection
                 (n_sock, n_addr) = self.sock.accept()
             except Exception, e:
                 l.error("Error accepting connection: " + str(e))
@@ -130,7 +134,8 @@ class cbpx_listener(Thread):
             if conn_q.qsize() >= int(params.max_queued_conns):
                 l.warning("Queued %i connections, limit is %i" % (conn_q.qsize(), int(params.max_queued_conns)))
                 switch_finish.acquire()
-                if not relay.is_set():
+                # if we were switching, than sorry, but not anymore
+                if not relay.isSet():
                     l.info("Enabling relaying")
                     relay.set()
                 switch_finish.release()
@@ -143,7 +148,7 @@ class cbpx_listener(Thread):
             except Full:
                 l.error("Queue is full with %i elements!" % conn_q.qsize())
                 switch_finish.acquire()
-                if not relay.is_set():
+                if not relay.isSet():
                     l.info("Enabling relaying")
                     relay.set()
                 switch_finish.release()
@@ -215,6 +220,7 @@ class cbpx_connector(Thread):
             relay.wait()
             l.debug("Trying to get connection from queue...")
             try:
+                # throttle if throttling enabled
                 if int(params.max_open_conns) > 0: self.throttle()
                 i = conn_q.get(True, 1)
                 cbpx_connector.c_dequeued_conns += 1

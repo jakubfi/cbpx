@@ -4,6 +4,7 @@ import threading
 
 from network import *
 from utils import *
+from utils import __version__
 
 # ------------------------------------------------------------------------
 def cmd_help(args):
@@ -51,6 +52,7 @@ def cmd_switch(args):
 
     old_backend = cbpx_connector.backend
 
+    # stop relaying connections now
     relay.clear()
 
     # check for 'dry switch' with no connections
@@ -59,6 +61,7 @@ def cmd_switch(args):
     check_if_no_connections()
     switch_finish.release()
 
+    # required for loop delay timer
     e = threading.Event()
 
     waited = 0
@@ -66,7 +69,7 @@ def cmd_switch(args):
         try:
             l.debug("Switch active, waited: %2.2f" % float(waited))
 
-            # wait params.switch_loop_wait
+            # wait params.switch_loop_wait seconds before next loop turn
             l.debug("Switch loop wait")
             e.clear()
             threading.Timer(float(params.switch_loop_wait), e.set).start()
@@ -78,14 +81,15 @@ def cmd_switch(args):
 
             waited += float(params.switch_loop_wait)
 
-            # check if we switched backends already
-            if relay.is_set():
+            # check if one of other threads enabled relaying in the meantime
+            if relay.isSet():
                 l.debug("Relaying enabled during switch wait")
                 if cbpx_connector.backend == old_backend:
+                    # if backend stays the same, it means connection limit was reached
                     print " Connection limit reached"
                 break
 
-            # check if we're out of time
+            # check if we're out of loop time here
             if waited > float(params.switch_max_time):
                 l.debug("Switch time exceeded")
                 print ' Timeout reached'
@@ -103,6 +107,7 @@ def cmd_switch(args):
 
     l.debug("Loop done, checking conditions")
 
+    # check what happened and report to user
     switch_finish.acquire()
     if cbpx_connector.backend == old_backend:
         l.debug("Backend not switched")
@@ -154,22 +159,28 @@ def cmd_stats(args):
 def cmd_set(args):
     l.debug("Processing command")
 
+    # no arguments = prit current settings
     if len(args) == 0:
         print_cfg()
         print "Settable: %s" % str(params.settable)
         return
-    
+
+    # wrong number of arguments
     if len(args) != 2:
         print "Use: 'set PARAMETER VALUE' to change setting"
         return
 
+    # check if parameter is available in configuration
     if not hasattr(params, args[0]):
         print " No such parameter: %s" % args[0]
         return
 
+    # check if parameter can be set
     if args[0] not in params.settable:
         print " Paremeter is not settable: %s" % args[0]
         return
+
+    # everything looks fine, set the parameter
 
     l.debug("Setting '%s' to '%s'" % (args[0], args[1]))
     try:
@@ -181,13 +192,19 @@ def cmd_set(args):
     print " Parameter '%s' set to '%s' " % (args[0], params.__dict__[args[0]])
 
 # ------------------------------------------------------------------------
+def cmd_hello(args):
+    l.debug("Processing command")
+    print " Hello! I'm cbpx %s" % __version__
+
+# ------------------------------------------------------------------------
 commands = {
     'help' : [cmd_help, "Print this help"],
     'quit' : [cmd_quit, "Kill the kitten"],
     'threads' : [cmd_threads, "List alive threads"],
     'switch' : [cmd_switch, "Summon All Demons of Evil"],
-    'stats' : [cmd_stats, "Print current network statistics (stats [SLEEP])"],
-    'set' : [cmd_set, "Show/set variables (set PARAMETER VALUE)"]
+    'stats' : [cmd_stats, "Print current statistics (stats [SLEEP])"],
+    'set' : [cmd_set, "Show/set variables (set PARAMETER VALUE)"],
+    'hello' : [cmd_hello, "Be polite, say hello"]
 }
 
 # ------------------------------------------------------------------------

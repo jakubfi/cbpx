@@ -3,9 +3,10 @@ import logging
 
 l = logging.getLogger()
 
-__version__ = "0.2.7"
+__version__ = "0.2.8"
 
 # ------------------------------------------------------------------------
+# class for storing configuration provided by optparse as well as our own stuff
 class my_params:
 
     settable = ['switch_max_time', 'max_queued_conns', 'max_open_conns', 'switch_delay', 'switch_loop_wait', 'net_buffer_size']
@@ -82,6 +83,7 @@ def parse_cmdline():
 
     (params, args) = parser.parse_args(values=my_params)
 
+    # check for required parameters
     if not params.port:
         raise SyntaxError("-p PORT is required")
     if not params.active:
@@ -97,6 +99,7 @@ def parse_cmdline():
     if params.log_level not in params.log_levels:
         raise SyntaxError("Log level must be one of: %s ('%s' is wrong)" % (str(params.log_levels), params.log_level))
 
+    # get IP and PORT from what user provided
     try:
         params.active_ip = params.active.split(":")[0]
         params.active_port = int(params.active.split(":")[1])

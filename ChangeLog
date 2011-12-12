@@ -1,3 +1,8 @@
+0.2.8
+
+* addition code comments
+* Event.is_set() -> Event.isSet(): python 2.5 compatibility
+
 0.2.7
 
 * feature: throttling added

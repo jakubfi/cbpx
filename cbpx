@@ -48,12 +48,15 @@ if not success:
 # start proxy
 try:
     backends = [(params.active_ip, params.active_port), (params.standby_ip, params.standby_port)]
+
     l.info("Launching Listener")
     listener = cbpx_listener(params.port)
     listener.start()
+
     l.info("Launching Connector")
     connector = cbpx_connector(backends)
     connector.start()
+
 except Exception, e:
     print "Error starting listener/flusher threads: %s" % str(e)
     l.error("Error starting listener/flusher threads: %s" % str(e))
@@ -65,6 +68,7 @@ print
 while True:
     if process_command(): break
 
+# cleanup and exit
 l.debug("Closing listener")
 listener.close()
 l.debug("Waiting for listener")
