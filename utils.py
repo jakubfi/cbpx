@@ -12,7 +12,8 @@ class my_params:
     settable = ['switch_max_time', 'max_queued_conns', 'max_open_conns', 'switch_delay', 'switch_loop_wait', 'net_buffer_size']
 
     # network:
-    port = ''
+    port = 0
+    rc_port = 0
     active = ''
     standby = ''
     active_ip = ''
@@ -33,7 +34,7 @@ class my_params:
 
     # logging
     log_file = 'cbpx.log'
-    log_level = 'WARNING'
+    log_level = 'DEBUG'
     log_format = '%(asctime)-15s %(levelname)-7s [%(threadName)-10s] (%(module)s::%(funcName)s) [L:%(lineno)d] %(message)s'
     log_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR']
 
@@ -70,7 +71,7 @@ def parse_cmdline():
     parser.add_option('-p', '--port', help='port that proxy will listen on', type=int)
     parser.add_option('-a', '--active', help='IP:port pair of active backend (the one we switch from)')
     parser.add_option('-s', '--standby', help='IP:port pair of standby backend (the one we switch to)')
-    parser.add_option('-r', '--rc_port', help='port for remote control connections (RC disabled if not specified)')
+    parser.add_option('-r', '--rc_port', help='port for remote control connections (RC disabled if not specified)', type=int)
     parser.add_option('-t', '--switch_max_time', help='timeout (in seconds) after which switchover fails')
     parser.add_option('-c', '--max_queued_conns', help='queued connections limit, after which switchover fails')
     parser.add_option('-o', '--max_open_conns', help='open connections limit (used for throttling, 0 disables this feature)')

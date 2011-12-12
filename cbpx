@@ -46,32 +46,37 @@ if not success:
     sys.exit(1)
 
 # start proxy
+
 try:
     backends = [(params.active_ip, params.active_port), (params.standby_ip, params.standby_port)]
-
-    l.info("Launching Listener")
-    listener = cbpx_listener(params.port)
-    listener.start()
 
     l.info("Launching Connector")
     connector = cbpx_connector(backends)
     connector.start()
 
+    l.info("Launching Listener")
+    listener = cbpx_listener(params.port)
+    listener.start()
+
 except Exception, e:
-    print "Error starting listener/flusher threads: %s" % str(e)
-    l.error("Error starting listener/flusher threads: %s" % str(e))
+    print " Error starting listener/connector threads: %s" % str(e)
+    l.error("Error starting listener/connector threads: %s" % str(e))
     sys.exit(1)
 
+# start command interface
+
 if int(params.rc_port) > 0:
-    l.info("Runnin in remote control mode")
-    rc_setup()
-    read_command = rc_read_command
+    l.info("Creating network command interface")
+    cmd_if = cmd_interface_net()
+else:
+    l.info("Creating interactive command interface")
+    cmd_if = cmd_interface_readline()
 
-l.info("Entering commandline loop")
+l.info("Creating command runner")
+cmd_run = cmd_runner(cmd_if)
 
-print
-while True:
-    if process_command(): break
+l.info("Entering command runner loop")
+cmd_run.run()
 
 # cleanup and exit
 l.debug("Closing listener")
@@ -82,10 +87,6 @@ l.debug("Closing connector")
 connector.close()
 l.debug("Waiting for connector")
 connector.join()
-
-if int(params.rc_port) > 0:
-    l.info("Shuttong down remote control")
-    rc_shutdown()
 
 print " Bye."
 l.info("cbpx exiting")

@@ -2,6 +2,8 @@
 
 * log level changes (important messages are INFO/WARNING now)
 * initial remote control
+* command interface reworked for remote control
+* connector started before listener
 
 0.2.8
 

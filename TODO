@@ -1,3 +1,8 @@
-* zdalne sterowanie
 * czy throttling taki może być? czy inaczej?
 
+bugs:
+
+* czas w pętli switch jest źle liczony
+* 'set' używa print_cfg(), a w kontekście RC nie powinien
+* handle ctrl-c in network mode properly...
+* jak się ma zachować w commandline mode a jak w daemon mode? kiedy wyświetlać konfigurację?
