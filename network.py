@@ -36,8 +36,8 @@ def check_if_no_connections():
         if not relay.is_set():
             l.debug("We were switching, so switch is done.")
             cbpx_connector.backend = int(not cbpx_connector.backend)
-            l.debug("Sleeping %2.2f before finishing switch" % float(switch_delay))
-            time.sleep(float(switch_delay))
+            l.debug("Sleeping %2.2f before finishing switch" % float(params.switch_delay))
+            time.sleep(float(params.switch_delay))
             relay.set()
 
 # ------------------------------------------------------------------------
@@ -107,10 +107,10 @@ class cbpx_listener(Thread):
 
     # --------------------------------------------------------------------
     def close(self):
-        l.info("Shutting down listener")
+        l.info("Shutting down listener socket")
         self.sock.shutdown(SHUT_RDWR)
         self.sock.close()
-        l.info("Listener closed")
+        l.info("Listener socket closed")
 
     # --------------------------------------------------------------------
     def run(self):
@@ -127,8 +127,8 @@ class cbpx_listener(Thread):
             l.info("New connection from: %s" % str(n_addr))
 
             # if there are more queued connections than allowed
-            if conn_q.qsize() >= int(params.max_conn):
-                l.warning("Queued %i connections, limit is %i" % (conn_q.qsize(), int(params.max_conn)))
+            if conn_q.qsize() >= int(params.max_queued_conns):
+                l.warning("Queued %i connections, limit is %i" % (conn_q.qsize(), int(params.max_queued_conns)))
                 switch_finish.acquire()
                 if not relay.is_set():
                     l.info("Enabling relaying")
@@ -199,6 +199,15 @@ class cbpx_connector(Thread):
 
 
     # --------------------------------------------------------------------
+    def throttle(self):
+        active_conns = cbpx_transporter.c_transporters/2
+        throttle_step = 0.01
+        l.debug("Throttle?: %i connections (%i limit)" % (active_conns, int(params.max_open_conns)))
+        while active_conns >= int(params.max_open_conns):
+            time.sleep(throttle_step)
+            active_conns = cbpx_transporter.c_transporters/2
+
+    # --------------------------------------------------------------------
     def run(self):
         l.info("Running connector")
         while True:
@@ -206,6 +215,7 @@ class cbpx_connector(Thread):
             relay.wait()
             l.debug("Trying to get connection from queue...")
             try:
+                if int(params.max_open_conns) > 0: self.throttle()
                 i = conn_q.get(True, 1)
                 cbpx_connector.c_dequeued_conns += 1
                 l.info("Dequeue connection: %s (%i in queue)" % (str(i[1]), conn_q.qsize()))

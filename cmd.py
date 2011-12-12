@@ -45,14 +45,13 @@ def cmd_switch(args):
     standby = int(not cbpx_connector.backend)
 
     print
-    print " Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.max_time), int(params.max_conn))
+    print " Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns))
     print
-    l.debug("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.max_time), int(params.max_conn)))
+    l.debug("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
 
     old_backend = cbpx_connector.backend
 
     relay.clear()
-    waited = 0
 
     # check for 'dry switch' with no connections
     switch_finish.acquire()
@@ -62,6 +61,7 @@ def cmd_switch(args):
 
     e = threading.Event()
 
+    waited = 0
     while True:
         try:
             l.debug("Switch active, waited: %2.2f" % float(waited))
@@ -86,7 +86,7 @@ def cmd_switch(args):
                 break
 
             # check if we're out of time
-            if waited > float(params.max_time):
+            if waited > float(params.switch_max_time):
                 l.debug("Switch time exceeded")
                 print ' Timeout reached'
                 break

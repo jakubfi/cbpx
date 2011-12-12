@@ -1,0 +1,47 @@
+0.2.7
+
+* feature: throttling added
+* max_open_conns added for throttling
+* cleanup: max connection parameters naming fixed
+* bugfix: switch_delay fixed
+
+0.2.6
+
+* porządki w kodzie
+* nowe parametry wywołania
+* switch_delay jest znów honorowany
+* przesunięcie sprawdzania przekroczenia max_conn wcześniej w kodzie
+* przygotowania do zdalnego sterowania (nie z linii poleceń)
+
+0.2.5
+
+* dodany switch
+* feature: switch działa w dwie strony
+* bugfix: obsługa ctrl-c przy switchu (przerywa procedurę)
+* bugfix: switch zadziała natychmiast, jeśli w momencie uruchamiania go nie ma żadnych aktywnych połączeń
+* kolejka ma nieskończoną długość, ale przy wkładaniu sprawdzamy, czy skolejkowanych połączeń nie jest więcej niż max_conn. Jeśli tak, to switch jest przerywany i kolejka spuszczana.
+* poziom logowania domyślnie "WARNING" - ponieważ logging jest thread-aware, to robi w chuj locków i psuje wydajność, jak się okazuje.
+
+0.2.4
+
+* development version
+
+0.2.3
+
+* connector_threads usunięte z kodu (spada wydajność)
+
+0.2.2
+
+* connector_threads option displayed in set()
+
+0.2.1
+
+* connector_threads
+
+0.2.0
+
+* queue-only version (no switch)
+
+0.1
+
+* first revision

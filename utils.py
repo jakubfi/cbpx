@@ -3,12 +3,12 @@ import logging
 
 l = logging.getLogger()
 
-__version__ = "0.2.6"
+__version__ = "0.2.7"
 
 # ------------------------------------------------------------------------
 class my_params:
 
-    settable = ['max_time', 'max_conn', 'switch_delay', 'switch_loop_wait', 'net_buffer_size']
+    settable = ['switch_max_time', 'max_queued_conns', 'max_open_conns', 'switch_delay', 'switch_loop_wait', 'net_buffer_size']
 
     # network:
     port = ''
@@ -22,10 +22,13 @@ class my_params:
     net_buffer_size = '2048'
 
     # switch:
-    max_conn = ''
-    max_time = ''
+    max_queued_conns = ''
+    max_open_conns = ''
+    switch_max_time = ''
     switch_delay = '0.3'
     switch_loop_wait = '0.1'
+
+    # throttle
 
     # logging
     log_file = 'cbpx.log'
@@ -49,8 +52,9 @@ def print_cfg():
     print " Listening on      : %i" % params.port
     print " Active backend    : %s:%i" % (params.active_ip, params.active_port)
     print " Standby backend   : %s:%i" % (params.standby_ip, params.standby_port)
-    print " Timeout           : %2.2f s"  % float(params.max_time)
-    print " Max connections   : %i" % int(params.max_conn)
+    print " Switch timeout    : %2.2f s" % float(params.switch_max_time)
+    print " Max queued conns  : %i" % int(params.max_queued_conns)
+    print " Max open conns    : %i" % int(params.max_open_conns)
     print " listen() backlog  : %i" % int(params.listen_backlog)
     print " Network buffer    : %i bytes" % int(params.net_buffer_size)
     print " Safe switch delay : %2.2f s" % float(params.switch_delay)
@@ -65,8 +69,9 @@ def parse_cmdline():
     parser.add_option('-p', '--port', help='port that proxy will listen on', type=int)
     parser.add_option('-a', '--active', help='IP:port pair of active backend (the one we switch from)')
     parser.add_option('-s', '--standby', help='IP:port pair of standby backend (the one we switch to)')
-    parser.add_option('-t', '--max_time', help='timeout (in seconds) after which switchover fails')
-    parser.add_option('-c', '--max_conn', help='queued connections limit, after which switchover fails')
+    parser.add_option('-t', '--switch_max_time', help='timeout (in seconds) after which switchover fails')
+    parser.add_option('-c', '--max_queued_conns', help='queued connections limit, after which switchover fails')
+    parser.add_option('-o', '--max_open_conns', help='open connections limit (used for throttling, 0 disables this feature)')
 
     parser.add_option('-b', '--listen_backlog', help='backlog for listen()')
     parser.add_option('-n', '--net_buffer_size', help='network communication buffer size')
@@ -83,12 +88,14 @@ def parse_cmdline():
         raise SyntaxError("-a ACTIVE is required")
     if not params.standby:
         raise SyntaxError("-s STANDBY is required")
-    if not params.max_time:
+    if not params.switch_max_time:
         raise SyntaxError("-t MAX_TIME is required")
-    if not params.max_conn:
-        raise SyntaxError("-c MAX_CONN is required")
+    if not params.max_queued_conns:
+        raise SyntaxError("-c MAX_QUEUED_CONNS is required")
+    if not params.max_open_conns:
+        raise SyntaxError("-o MAX_OPEN_CONNS is required")
     if params.log_level not in params.log_levels:
-        raise SyntaxError("Log level must be one of: %s, not %s" % (str(params.log_levels), params.log_level))
+        raise SyntaxError("Log level must be one of: %s ('%s' is wrong)" % (str(params.log_levels), params.log_level))
 
     try:
         params.active_ip = params.active.split(":")[0]
