@@ -31,6 +31,7 @@ class cmd_interface:
 class cmd_interface_readline(cmd_interface):
 
     def __init__(self):
+        l.info("Starting readline command interface")
         print " Ready for your commands, my master."
 
     def read(self):
@@ -45,6 +46,7 @@ class cmd_interface_readline(cmd_interface):
 class cmd_interface_net(cmd_interface):
 
     def __init__(self):
+        l.info("Starting TCP command interface on port %i" % int(params.rc_port))
         self.rc_sock = socket(AF_INET, SOCK_STREAM)
         self.rc_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.rc_sock.bind(('', int(params.rc_port)))
@@ -56,7 +58,10 @@ class cmd_interface_net(cmd_interface):
         self.rc_sock.close()
 
     def read(self):
+        l.debug("Awaiting TCP command connection...")
         (self.rc_conn, self.rc_addr) = self.rc_sock.accept()
+        l.info("TCP commnd connection from: %s" % str(self.rc_addr))
+        l.debug("Awaiting network command...")
         line = self.rc_conn.recv(int(params.net_buffer_size))
         return line
 

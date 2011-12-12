@@ -34,7 +34,7 @@ class my_params:
 
     # logging
     log_file = 'cbpx.log'
-    log_level = 'DEBUG'
+    log_level = 'WARNING'
     log_format = '%(asctime)-15s %(levelname)-7s [%(threadName)-10s] (%(module)s::%(funcName)s) [L:%(lineno)d] %(message)s'
     log_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR']
 
