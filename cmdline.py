@@ -35,11 +35,15 @@ def cmd_threads(args):
     l.debug("Processing command")
     print " Threads: ",
     workers = 0
+    connectors = 0
     for t in threading.enumerate():
         if t.getName().startswith("Thread-"):
             workers += 1
+        elif t.getName().startswith("Conn-"):
+            connectors += 1
         else:
             print "%s," % t.getName(),
+    print "Connectors: %i " % connectors,
     print "Transporters: %i " % workers
 
 # ------------------------------------------------------------------------
@@ -55,9 +59,9 @@ def cmd_stats(args):
     while True:
         e.clear()
         if not cnt % 50:
-            print "Current backend       active in queue enqueued dequeued"
-            print "--------------------- ------ -------- -------- --------"
-        print "%-21s %6i %8i %8i %8i" % (cbpx_connector.backends[cbpx_connector.backend]["ip"] + str(cbpx_connector.backends[cbpx_connector.backend]["port"]), cbpx_transporter.c_transporters, conn_q.qsize(), cbpx_listener.c_queued_conns, cbpx_connector.c_dequeued_conns)
+            print "Current backend       active in queue enqueued dequeued opened closed"
+            print "--------------------- ------ -------- -------- -------- ------ ------"
+        print "%-21s %6i %8i %8i %8i %6i %6i" % (cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_transporter.c_transporters/2, conn_q.qsize(), cbpx_listener.c_queued_conns, cbpx_connector.c_dequeued_conns, cbpx_transporter.c_opened_conns, cbpx_transporter.c_closed_conns)
         cnt += 1
         try:
             threading.Timer(float(args[0]), e.set).start()

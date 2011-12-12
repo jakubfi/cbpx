@@ -1,6 +1,6 @@
 import optparse
 
-__version__ = "0.2.0"
+__version__ = "0.2.2"
 
 # ------------------------------------------------------------------------
 class my_params:
@@ -15,7 +15,7 @@ class my_params:
     active_port = ''
     standby_ip = ''
     standby_port = ''
-    listen_backlog = '1024'
+    listen_backlog = '512'
     net_buffer_size = '2048'
 
     # switch:
@@ -27,6 +27,8 @@ class my_params:
     # logging
     log_file = 'cbpx.log'
     log_level = 'INFO'
+
+    connector_threads = '32'
 
 params = my_params()
 
@@ -50,6 +52,7 @@ def print_cfg():
     print " Network buffer    : %i bytes" % int(params.net_buffer_size)
     print " Safe switch delay : %2.2f s" % float(params.switch_delay)
     print " Switch loop wait  : %2.2f s" % float(params.switch_loop_wait)
+    print " Connector threads : %i" % int(params.connector_threads)
     print " Log file          : %s" % params.log_file
     print " Log level         : %s" % params.log_level
     print

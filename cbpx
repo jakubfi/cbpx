@@ -50,11 +50,19 @@ if not success:
 
 # start proxy
 try:
-    backends = [{"ip":params.active_ip, "port":params.active_port}, {"ip":params.standby_ip, "port":params.standby_port}]
+    l.info("Launching Listener")
+    backends = [(params.active_ip, params.active_port), (params.standby_ip, params.standby_port)]
     listener = cbpx_listener(params.port)
-    connector = cbpx_connector(backends)
     listener.start()
-    connector.start()
+
+    connectors = []
+
+    l.info("Launching %i Connectors" % int(params.connector_threads))
+    for i in range(1, int(params.connector_threads)+1):
+        connector = cbpx_connector(backends, "Conn-%i" % i)
+        connector.start()
+        connectors.append(connector)
+
 except Exception, e:
     print "Error starting listener/flusher threads: %s" % str(e)
     l.error("Error starting listener/flusher threads: %s" % str(e))
@@ -70,13 +78,14 @@ l.debug("Closing listener")
 listener.close()
 l.debug("Waiting for listener")
 listener.join()
-l.debug("Closing connector")
-connector.close()
+l.debug("Closing connectors")
+for c in connectors:
+    c.close()
 l.debug("Waiting for connector")
-connector.join()
+for c in connectors:
+    c.join()
 
 print " Bye."
-
 l.info("Exiting")
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4

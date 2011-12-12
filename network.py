@@ -35,6 +35,8 @@ class cbpx_transporter(Thread):
 
     c_transporters = 0
     lock_c_transporters = Lock()
+    c_opened_conns = 0
+    c_closed_conns = 0
 
     # --------------------------------------------------------------------
     def __init__(self, sock_from, sock_to):
@@ -45,6 +47,7 @@ class cbpx_transporter(Thread):
 
         cbpx_transporter.lock_c_transporters.acquire()
         cbpx_transporter.c_transporters += 1
+        cbpx_transporter.c_opened_conns += 1
         cbpx_transporter.lock_c_transporters.release()
 
     # --------------------------------------------------------------------
@@ -72,6 +75,7 @@ class cbpx_transporter(Thread):
 
         cbpx_transporter.lock_c_transporters.acquire()
         cbpx_transporter.c_transporters -= 1
+        cbpx_transporter.c_closed_conns += 1
         cbpx_transporter.lock_c_transporters.release()
 
 # ------------------------------------------------------------------------
@@ -132,8 +136,8 @@ class cbpx_connector(Thread):
     quit = 0
 
     # --------------------------------------------------------------------
-    def __init__(self, backends):
-        Thread.__init__(self, name="Connector")
+    def __init__(self, backends, name):
+        Thread.__init__(self, name=name)
         l.info("Initializing connector")
         cbpx_connector.backends = backends
 
@@ -147,9 +151,7 @@ class cbpx_connector(Thread):
 
         try:
             fwd_sock = socket(AF_INET, SOCK_STREAM)
-            ip = cbpx_connector.backends[cbpx_connector.backend]["ip"]
-            port = cbpx_connector.backends[cbpx_connector.backend]["port"]
-            fwd_sock.connect((ip, port))
+            fwd_sock.connect(cbpx_connector.backends[cbpx_connector.backend])
         except IOError, (errno, strerror):
             l.error("Error extablishing connection to backend: I/O error(%i): %s" % (errno, strerror))
             n_sock.close()
@@ -185,5 +187,6 @@ class cbpx_connector(Thread):
                     l.info("Breaking connector loop on quit")
                     break
         l.debug("Exiting connector loop")
+
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
