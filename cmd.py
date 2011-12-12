@@ -1,84 +1,17 @@
-import time
 import readline
 import logging
 import threading
 
-from network import *
-from utils import *
+from network import cbpx_connector, cbpx_listener, cbpx_transporter, conn_q, relay, switch_finish, check_if_no_connections
+from utils import params, l, print_cfg
 from utils import __version__
-
-# ------------------------------------------------------------------------
-class cmd_interface:
-
-    def __init__(self):
-        pass
-
-    def shutdown(self):
-        pass
-
-    def read(self):
-        time.sleep(1)
-        return "hello"
-
-    def write(self, text):
-        pass
-
-    def finish(self):
-        pass
-
-
-# ------------------------------------------------------------------------
-class cmd_interface_readline(cmd_interface):
-
-    def __init__(self):
-        l.info("Starting readline command interface")
-        print " Ready for your commands, my master."
-
-    def read(self):
-        line = raw_input("cbpx> ")
-        return line
-
-    def write(self, text):
-        print text
-
-
-# ------------------------------------------------------------------------
-class cmd_interface_net(cmd_interface):
-
-    def __init__(self):
-        l.info("Starting TCP command interface on port %i" % int(params.rc_port))
-        self.rc_sock = socket(AF_INET, SOCK_STREAM)
-        self.rc_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        self.rc_sock.bind(('', int(params.rc_port)))
-        self.rc_sock.listen(5)
-        print " Ready for your commands on TCP port %i, my master." % int(params.rc_port)
-
-    def shutdown(self):
-        self.rc_sock.shutdown(SHUT_RDWR)
-        self.rc_sock.close()
-
-    def read(self):
-        l.debug("Awaiting TCP command connection...")
-        (self.rc_conn, self.rc_addr) = self.rc_sock.accept()
-        l.info("TCP commnd connection from: %s" % str(self.rc_addr))
-        l.debug("Awaiting network command...")
-        line = self.rc_conn.recv(int(params.net_buffer_size))
-        return line
-
-    def write(self, text):
-        self.rc_conn.send(text + "\n")
-        pass
-
-    def finish(self):
-        self.rc_conn.shutdown(SHUT_RDWR)
-        self.rc_conn.close()
 
 # ------------------------------------------------------------------------
 class cmd_runner:
 
     # --------------------------------------------------------------------
-    def __init__(self, cmd_if):
-        self.cmd = cmd_if
+    def __init__(self, ui):
+        self.ui = ui
         self.commands = {
             'help' : [self.cmd_help, "Print this help"],
             'quit' : [self.cmd_quit, "Kill the kitten"],
@@ -92,21 +25,21 @@ class cmd_runner:
     # --------------------------------------------------------------------
     def cmd_help(self, args):
         l.debug("Processing command")
-        self.cmd.write("\n Available commands:\n")
+        self.ui.write("\n Available commands:\n")
         for c in sorted(self.commands.keys()):
-            self.cmd.write("   %-10s : %s " % (c, self.commands[c][1]))
-        self.cmd.write("")
+            self.ui.write("   %-10s : %s " % (c, self.commands[c][1]))
+        self.ui.write("")
 
     # --------------------------------------------------------------------
     def cmd_quit(self, args):
         l.debug("Processing command")
         if (cbpx_transporter.c_transporters > 0):
-            self.cmd.write(" I won't quit with active connections. See stats.")
+            self.ui.write(" I won't quit with active connections. See stats.")
             return
         if (conn_q.qsize() > 0):
-            self.cmd.write(" I won't quit with connections in queue. See stats.")
+            self.ui.write(" I won't quit with connections in queue. See stats.")
             return
-        self.cmd.write(" Exiting...")
+        self.ui.write(" Exiting...")
         return 1
 
     # --------------------------------------------------------------------
@@ -121,7 +54,7 @@ class cmd_runner:
             else:
                 threads = threads + ", " + t.getName()
 
-        self.cmd.write("Threads: Workers: %i%s" % (workers, threads))
+        self.ui.write("Threads: Workers: %i%s" % (workers, threads))
 
     # --------------------------------------------------------------------
     def cmd_switch(self, args):
@@ -130,9 +63,9 @@ class cmd_runner:
         active = cbpx_connector.backend
         standby = int(not cbpx_connector.backend)
 
-        self.cmd.write("")
-        self.cmd.write(" Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
-        self.cmd.write("")
+        self.ui.write("")
+        self.ui.write(" Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
+        self.ui.write("")
         l.info("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
 
         old_backend = cbpx_connector.backend
@@ -171,23 +104,23 @@ class cmd_runner:
                     l.info("Relaying enabled during switch wait")
                     if cbpx_connector.backend == old_backend:
                         # if backend stays the same, it means connection limit was reached
-                        self.cmd.write(" Queued connections limit reached")
+                        self.ui.write(" Queued connections limit reached")
                     break
 
                 # check if we're out of loop time here
                 if waited > float(params.switch_max_time):
                     l.warning("Switch time exceeded")
-                    self.cmd.write(" Timeout reached")
+                    self.ui.write(" Timeout reached")
                     break
 
             except Exception, e:
                 l.warning("Exception in 'switch' loop: %s, break" % str(e))
-                self.cmd.write(" Exception: %s" % str(e))
+                self.ui.write(" Exception: %s" % str(e))
                 break
 
             except KeyboardInterrupt:
                 l.warning("Ctrl-c in switch loop, break")
-                self.cmd.write(" Ctrl-c")
+                self.ui.write(" Ctrl-c")
                 break
 
         l.debug("Loop done, checking conditions")
@@ -196,12 +129,12 @@ class cmd_runner:
         switch_finish.acquire()
         if cbpx_connector.backend == old_backend:
             l.warning("Backend not switched")
-            self.cmd.write("")
-            self.cmd.write(" Switch failed")
+            self.ui.write("")
+            self.ui.write(" Switch failed")
         else:
             l.info("Backend switched")
-            self.cmd.write("")
-            self.cmd.write(" Switch OK!")
+            self.ui.write("")
+            self.ui.write(" Switch OK!")
         relay.set()
         switch_finish.release()
         
@@ -215,9 +148,9 @@ class cmd_runner:
             except:
                 pass
         if header:
-            self.cmd.write(" SWtime Current backend       active in queue enqueued dequeued opened closed")
-            self.cmd.write(" ------ --------------------- ------ -------- -------- -------- ------ ------")
-        self.cmd.write(" %-6s %-21s %6i %8i %8i %8i %6i %6i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_transporter.c_transporters/2, conn_q.qsize(), cbpx_listener.c_queued_conns, cbpx_connector.c_dequeued_conns, cbpx_transporter.c_opened_conns, cbpx_transporter.c_closed_conns))
+            self.ui.write(" SWtime Current backend       active in queue enqueued dequeued opened closed")
+            self.ui.write(" ------ --------------------- ------ -------- -------- -------- ------ ------")
+        self.ui.write(" %-6s %-21s %6i %8i %8i %8i %6i %6i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_transporter.c_transporters/2, conn_q.qsize(), cbpx_listener.c_queued_conns, cbpx_connector.c_dequeued_conns, cbpx_transporter.c_opened_conns, cbpx_transporter.c_closed_conns))
 
     # --------------------------------------------------------------------
     def cmd_stats(self, args):
@@ -247,22 +180,22 @@ class cmd_runner:
         # no arguments = prit current settings
         if len(args) == 0:
             print_cfg()
-            self.cmd.write("Settable: %s" % str(params.settable))
+            self.ui.write("Settable: %s" % str(params.settable))
             return
 
         # wrong number of arguments
         if len(args) != 2:
-            self.cmd.write("Use: 'set PARAMETER VALUE' to change setting")
+            self.ui.write("Use: 'set PARAMETER VALUE' to change setting")
             return
 
         # check if parameter is available in configuration
         if not hasattr(params, args[0]):
-            self.cmd.write(" No such parameter: %s" % args[0])
+            self.ui.write(" No such parameter: %s" % args[0])
             return
 
         # check if parameter can be set
         if args[0] not in params.settable:
-            self.cmd.write(" Paremeter is not settable: %s" % args[0])
+            self.ui.write(" Paremeter is not settable: %s" % args[0])
             return
 
         # everything looks fine, set the parameter
@@ -271,37 +204,37 @@ class cmd_runner:
         try:
             params.__dict__[args[0]] = args[1]
         except Exception, e:
-            self.cmd.write(" Could not set parameter '%s' to '%s', error: %s" % (args[0], args[1], str(e)))
+            self.ui.write(" Could not set parameter '%s' to '%s', error: %s" % (args[0], args[1], str(e)))
             l.warning("Could not set parameter '%s' to '%s', error: %s" % (args[0], args[1], str(e)))
             raise e
-        self.cmd.write(" Parameter '%s' set to '%s' " % (args[0], params.__dict__[args[0]]))
+        self.ui.write(" Parameter '%s' set to '%s' " % (args[0], params.__dict__[args[0]]))
 
     # --------------------------------------------------------------------
     def cmd_hello(self, args):
         l.debug("Processing command")
-        self.cmd.write(" Hello! I'm cbpx %s" % __version__)
+        self.ui.write(" Hello! I'm cbpx %s" % __version__)
 
    
     # --------------------------------------------------------------------
     def process_command(self):
         try:
-            line = self.cmd.read()
+            line = self.ui.read()
             l.debug("Got input: '%s'" % line)
             if not line:
                 return
             l_cmd = line.split(" ")[0]
             l_args = line.split(" ")[1:]
             if l_cmd and (l_cmd not in self.commands.keys()):
-                self.cmd.write(" Unknown command: '%s'" % l_cmd)
+                self.ui.write(" Unknown command: '%s'" % l_cmd)
             else:
                 res = self.commands[l_cmd][0](l_args)
-                self.cmd.finish()
+                self.ui.finish()
                 return res
         except KeyboardInterrupt:
             l.debug("Got KeyboardInterrupt, ignoring")
-            self.cmd.write("")
+            self.ui.write("")
         except EOFError:
-            self.cmd.write("")
+            self.ui.write("")
         except Exception, e:
             l.warning("Exception %s: %s" % (type(e), str(e)))
         return
@@ -311,5 +244,6 @@ class cmd_runner:
         while True:
             if self.process_command():
                 break
+        self.ui.shutdown()
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4

@@ -1,6 +1,9 @@
 0.2.10
 
-* 
+* cleanup imports (for easier dependency handling)
+* rename cmd_interface_ classes to ui_
+* separate module for ui_*
+* python 2.5 enforced in shebang
 
 0.2.9
 
