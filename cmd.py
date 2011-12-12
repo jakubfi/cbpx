@@ -48,7 +48,7 @@ def cmd_switch(args):
     print
     print " Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns))
     print
-    l.debug("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
+    l.info("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
 
     old_backend = cbpx_connector.backend
 
@@ -83,15 +83,15 @@ def cmd_switch(args):
 
             # check if one of other threads enabled relaying in the meantime
             if relay.isSet():
-                l.debug("Relaying enabled during switch wait")
+                l.info("Relaying enabled during switch wait")
                 if cbpx_connector.backend == old_backend:
                     # if backend stays the same, it means connection limit was reached
-                    print " Connection limit reached"
+                    print " Queued connections limit reached"
                 break
 
             # check if we're out of loop time here
             if waited > float(params.switch_max_time):
-                l.debug("Switch time exceeded")
+                l.warning("Switch time exceeded")
                 print ' Timeout reached'
                 break
 
@@ -110,11 +110,11 @@ def cmd_switch(args):
     # check what happened and report to user
     switch_finish.acquire()
     if cbpx_connector.backend == old_backend:
-        l.debug("Backend not switched")
+        l.warning("Backend not switched")
         print
         print " Switch failed"
     else:
-        l.debug("Backend switched")
+        l.info("Backend switched")
         print
         print " Switch OK!"
     relay.set()
@@ -149,7 +149,7 @@ def cmd_stats(args):
             threading.Timer(float(args[0]), e.set).start()
             e.wait()
         except Exception, e:
-            l.debug("Exception in 'stats' loop: %s, break" % str(e))
+            l.warning("Exception in 'stats' loop: %s, break" % str(e))
             break
         except KeyboardInterrupt:
             l.debug("Ctrl-C in stats loop, break")
@@ -182,7 +182,7 @@ def cmd_set(args):
 
     # everything looks fine, set the parameter
 
-    l.debug("Setting '%s' to '%s'" % (args[0], args[1]))
+    l.info("Setting '%s' to '%s'" % (args[0], args[1]))
     try:
         params.__dict__[args[0]] = args[1]
     except Exception, e:
@@ -208,9 +208,41 @@ commands = {
 }
 
 # ------------------------------------------------------------------------
+def ui_read_command():
+    line = raw_input("cbpx> ")
+    return line
+
+rc_sock = socket(AF_INET, SOCK_STREAM)
+
+# ------------------------------------------------------------------------
+def rc_setup():
+    
+    global rc_sock
+    rc_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+    rc_sock.bind(('', int(params.rc_port)))
+    rc_sock.listen(5)
+
+# ------------------------------------------------------------------------
+def rc_shutdown():
+    global rc_sock
+    rc_sock.shutdown(SHUT_RDWR)
+    rc_sock.close()
+
+# ------------------------------------------------------------------------
+def rc_read_command():
+    global rc_sock
+    (rc_conn, rc_addr) = rc_sock.accept()
+    line = rc_conn.recv(int(params.net_buffer_size))
+    rc_conn.shutdown(SHUT_RDWR)
+    rc_conn.close()
+    return line
+    
+read_command = rc_read_command
+
+# ------------------------------------------------------------------------
 def process_command():
     try:
-        line = raw_input("cbpx> ")
+        line = read_command()
         l.debug("Got input: '%s'" % line)
         if not line:
             return

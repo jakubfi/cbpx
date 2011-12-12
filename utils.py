@@ -3,7 +3,7 @@ import logging
 
 l = logging.getLogger()
 
-__version__ = "0.2.8"
+__version__ = "0.2.9"
 
 # ------------------------------------------------------------------------
 # class for storing configuration provided by optparse as well as our own stuff
@@ -70,6 +70,7 @@ def parse_cmdline():
     parser.add_option('-p', '--port', help='port that proxy will listen on', type=int)
     parser.add_option('-a', '--active', help='IP:port pair of active backend (the one we switch from)')
     parser.add_option('-s', '--standby', help='IP:port pair of standby backend (the one we switch to)')
+    parser.add_option('-r', '--rc_port', help='port for remote control connections (RC disabled if not specified)')
     parser.add_option('-t', '--switch_max_time', help='timeout (in seconds) after which switchover fails')
     parser.add_option('-c', '--max_queued_conns', help='queued connections limit, after which switchover fails')
     parser.add_option('-o', '--max_open_conns', help='open connections limit (used for throttling, 0 disables this feature)')

@@ -21,7 +21,7 @@ except Exception, e:
 
 setup_logging()
 
-l.info("Startup")
+l.info("cbpx startup")
 
 print_logo()
 print_cfg()
@@ -62,6 +62,11 @@ except Exception, e:
     l.error("Error starting listener/flusher threads: %s" % str(e))
     sys.exit(1)
 
+if int(params.rc_port) > 0:
+    l.info("Runnin in remote control mode")
+    rc_setup()
+    read_command = rc_read_command
+
 l.info("Entering commandline loop")
 
 print
@@ -78,7 +83,11 @@ connector.close()
 l.debug("Waiting for connector")
 connector.join()
 
+if int(params.rc_port) > 0:
+    l.info("Shuttong down remote control")
+    rc_shutdown()
+
 print " Bye."
-l.info("Exiting")
+l.info("cbpx exiting")
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4

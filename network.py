@@ -35,10 +35,10 @@ def check_if_no_connections():
         l.debug("No more connections")
         # stopped relaying means we're switching backends
         if not relay.isSet():
-            l.debug("We were switching, so switch is done.")
+            l.info("We were switching, so switch is done.")
             # change backend first
             cbpx_connector.backend = int(not cbpx_connector.backend)
-            l.debug("Sleeping %2.2f before finishing switch" % float(params.switch_delay))
+            l.info("Sleeping %2.2f before finishing switch" % float(params.switch_delay))
             time.sleep(float(params.switch_delay))
             # let the connections be established
             relay.set()
@@ -113,7 +113,7 @@ class cbpx_listener(Thread):
         l.info("Shutting down listener socket")
         self.sock.shutdown(SHUT_RDWR)
         self.sock.close()
-        l.info("Listener socket closed")
+        l.debug("Listener socket closed")
 
     # --------------------------------------------------------------------
     def run(self):

@@ -1,6 +1,11 @@
+0.2.9
+
+* log level changes (important messages are INFO/WARNING now)
+* initial remote control
+
 0.2.8
 
-* addition code comments
+* additional code comments
 * Event.is_set() -> Event.isSet(): python 2.5 compatibility
 
 0.2.7
