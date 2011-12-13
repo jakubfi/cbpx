@@ -1,11 +1,11 @@
+features:
+
+* parametry do ustawiania, listowanie, opisy... nowa klasa z parametrami?
+* konfiguracja
+
 bugs:
 
-* czas w pętli switch jest źle liczony
-* 'set' używa print_cfg(), a w kontekście RC nie powinien
-* jak się ma zachować w commandline mode a jak w daemon mode? kiedy wyświetlać konfigurację?
 * detach from terminal in daemon mode
-* be quiet in daemon mode
-* logowanie: DEBUG=napierdalaj, INFO=wszystko inne prócz napierdalania
 
 kosmetyka:
 

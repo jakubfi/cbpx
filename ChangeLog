@@ -1,3 +1,10 @@
+0.3.0
+
+* fixed log levels: INFO doesn't flood log anymore, only DEBUG does (INFO is default)
+* remote control mode doesn't print anything on screen
+* print_cfg() moved to cmd.py, print_logo() moved to readline ui
+* rewritten switch procedure: used switch timer, new logic, new switch finish reason storage
+
 0.2.10
 
 * cleanup imports (for easier dependency handling)

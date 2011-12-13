@@ -10,7 +10,7 @@ class naparzacz(threading.Thread):
 		while True:
 			#print "new connection"
 			db = _mysql.connect(host="127.0.0.1", port=4406, user="sbtest", passwd="sbtest", db="sbtest")
-			t = random.randint(0, 1) / 10.0
+			t = random.randint(0, 10) / 10.0
 			#print "waiting " + str(t)
 			time.sleep(t)
 			#print "closing"

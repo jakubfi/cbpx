@@ -4,7 +4,7 @@ import sys
 import logging
 import threading
 
-from utils import params, l, parse_cmdline, setup_logging, print_logo, print_cfg
+from utils import params, l, parse_cmdline, setup_logging
 from network import cbpx_connector, cbpx_listener
 from cmd import cmd_runner
 from ui import ui_net, ui_readline
@@ -24,9 +24,6 @@ setup_logging()
 
 l.info("cbpx startup")
 
-print_logo()
-print_cfg()
-
 # start proxy listener and connector threads
 
 try:
@@ -41,7 +38,7 @@ try:
     listener.start()
 
 except Exception, e:
-    print " Error starting listener/connector threads: %s" % str(e)
+    print "Error starting listener/connector threads: %s" % str(e)
     l.error("Error starting listener/connector threads: %s" % str(e))
     sys.exit(1)
 
@@ -55,7 +52,7 @@ try:
         l.info("Starting commend runner with readline user interface")
         cmd_runner(ui_readline()).run()
 except Exception, e:
-    print " Error running command interface: %s" % str(e)
+    print "Error running command interface: %s" % str(e)
     l.error("Error running command interface: %s" % str(e))
     # no sys.exit() here, we need to clean up things a bit
 
@@ -69,7 +66,6 @@ connector.close()
 l.debug("Waiting for connector")
 connector.join()
 
-print " Bye."
 l.info("cbpx exiting")
 
 

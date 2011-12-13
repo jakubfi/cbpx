@@ -2,13 +2,15 @@ import time
 import logging
 
 from socket import *
-from threading import Thread, Event, Lock
+from threading import Thread, Lock
 from Queue import *
 
 from utils import params, l
+from th import DescEvent
+
 
 conn_q = Queue()
-relay = Event()
+relay = DescEvent()
 switch_finish = Lock()
 
 # --------------------------------------------------------------------
@@ -23,7 +25,7 @@ def check_if_no_connections():
             l.info("Sleeping %2.2f before finishing switch" % float(params.switch_delay))
             time.sleep(float(params.switch_delay))
             # let the connections be established
-            relay.set()
+            relay.set("all connections closed")
 
 # ------------------------------------------------------------------------
 class cbpx_transporter(Thread):
@@ -110,7 +112,7 @@ class cbpx_listener(Thread):
                 l.error("Error accepting connection: " + str(e))
 		break
 
-            l.info("New connection from: %s" % str(n_addr))
+            l.debug("New connection from: %s" % str(n_addr))
 
             # if there are more queued connections than allowed
             if conn_q.qsize() >= int(params.max_queued_conns):
@@ -119,7 +121,7 @@ class cbpx_listener(Thread):
                 # if we were switching, than sorry, but not anymore
                 if not relay.isSet():
                     l.info("Enabling relaying")
-                    relay.set()
+                    relay.set("connection limit reached")
                 switch_finish.release()
 
             try:
@@ -132,7 +134,7 @@ class cbpx_listener(Thread):
                 switch_finish.acquire()
                 if not relay.isSet():
                     l.info("Enabling relaying")
-                    relay.set()
+                    relay.set("connection queue full")
                 switch_finish.release()
 
             except Exception, e:
@@ -154,7 +156,7 @@ class cbpx_connector(Thread):
         Thread.__init__(self, name="Connector")
         l.info("Initializing connector")
         cbpx_connector.backends = backends
-        relay.set()
+        relay.set("connector started")
 
     # --------------------------------------------------------------------
     def close(self):
@@ -206,7 +208,7 @@ class cbpx_connector(Thread):
                 if int(params.max_open_conns) > 0: self.throttle()
                 i = conn_q.get(True, 1)
                 cbpx_connector.c_dequeued_conns += 1
-                l.info("Dequeue connection: %s (%i in queue)" % (str(i[1]), conn_q.qsize()))
+                l.debug("Dequeue connection: %s (%i in queue)" % (str(i[1]), conn_q.qsize()))
                 switch_finish.acquire()
                 self.process_connection(i[0], i[1])
                 switch_finish.release()
@@ -216,7 +218,7 @@ class cbpx_connector(Thread):
                 if cbpx_connector.quit:
                     l.info("Breaking connector loop on quit")
                     break
-        l.debug("Exiting connector loop")
+        l.info("Exiting connector loop")
 
 
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
