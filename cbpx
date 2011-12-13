@@ -5,7 +5,7 @@ import logging
 import threading
 
 from utils import params, l, parse_cmdline, setup_logging, print_logo, print_cfg
-from network import test_connection, cbpx_connector, cbpx_listener
+from network import cbpx_connector, cbpx_listener
 from cmd import cmd_runner
 from ui import ui_net, ui_readline
 
@@ -26,25 +26,6 @@ l.info("cbpx startup")
 
 print_logo()
 print_cfg()
-
-# check backends
-success = 1
-try:
-    v_active = test_connection(params.active_ip, params.active_port)
-    print " Active backend server version: %s" % v_active
-except Exception, e:
-    print " Error connecting to active backend: %s " % str(e)
-    success = 0
-try:
-    v_standby = test_connection(params.standby_ip, params.standby_port)
-    print " Standby backend server version: %s" % v_standby
-except Exception, e:
-    print " Error connecting to standby backend: %s " % str(e)
-    success = 0
-
-if not success:
-    print " Exiting due to backend connection errors."
-    sys.exit(1)
 
 # start proxy listener and connector threads
 

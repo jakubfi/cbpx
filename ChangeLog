@@ -4,6 +4,7 @@
 * rename cmd_interface_ classes to ui_, separate module for ui_*
 * python 2.5 enforced in shebang
 * 'stats' now behaves even more like vmstat (stats [sleep] [count])
+* test_connection() removed (it's not proxy's job)
 
 0.2.9
 

@@ -73,8 +73,12 @@ class ui_net(ui):
             pass
 
     def finish(self):
-        self.rc_conn.shutdown(SHUT_RDWR)
-        self.rc_conn.close()
+        try:
+            self.rc_conn.shutdown(SHUT_RDWR)
+            self.rc_conn.close()
+        except:
+            # so what?
+            pass
 
 
 

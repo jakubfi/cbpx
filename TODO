@@ -1,8 +1,17 @@
-* czy throttling taki może być? czy inaczej?
-
 bugs:
 
 * czas w pętli switch jest źle liczony
 * 'set' używa print_cfg(), a w kontekście RC nie powinien
 * jak się ma zachować w commandline mode a jak w daemon mode? kiedy wyświetlać konfigurację?
-* z check backends trzeba coś zrobić
+* detach from terminal in daemon mode
+* be quiet in daemon mode
+* logowanie: DEBUG=napierdalaj, INFO=wszystko inne prócz napierdalania
+
+kosmetyka:
+
+* przy wychodzeniu: ERROR [Listener ] (network::run) [L:128] Error accepting connection: (22, 'Invalid argument')
+
+do obgadania:
+
+* czy throttling taki może być? czy inaczej?
+* 'safe sleep' przed switchem

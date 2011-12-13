@@ -11,25 +11,6 @@ conn_q = Queue()
 relay = Event()
 switch_finish = Lock()
 
-# ------------------------------------------------------------------------
-def test_connection(ip, port):
-    test_sock = socket(AF_INET, SOCK_STREAM)
-    test_sock.settimeout(1)
-
-    try:
-        test_sock.connect((ip, port))
-    except Exception, e:
-        test_sock.close()
-        raise IOError("can't connect: %s" % str(e))
-    try:
-        data = test_sock.recv(int(params.net_buffer_size))
-        sv = data[5:].split("\0")[0]
-    except Exception, e:
-        test_sock.close()
-        raise IOError("didn't get server version: %s" % str(e))
-
-    return sv
-
 # --------------------------------------------------------------------
 def check_if_no_connections():
     if cbpx_transporter.c_transporters == 0:
