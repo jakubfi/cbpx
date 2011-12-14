@@ -35,7 +35,7 @@ class cmd_runner:
         self.ui = ui
         self.commands = {
             'help' : [self.cmd_help, "Print this help"],
-            'quit' : [self.cmd_quit, "Kill the kitten. You may use 'force' option."],
+            'quit' : [self.cmd_quit, "Kill the kitten. Using 'force' is an option."],
             'threads' : [self.cmd_threads, "List alive threads"],
             'switch' : [self.cmd_switch, "Summon All Demons of Evil"],
             'stats' : [self.cmd_stats, "Print current statistics (stats [SLEEP] [COUNT])"],
@@ -65,9 +65,10 @@ class cmd_runner:
                 return
             if (conn_q.qsize() > 0):
                 self.ui.write(" I won't quit with connections in queue. See stats.")
-                returnA
-
-        self.ui.write(" Exiting...")
+                return
+            self.ui.write(" Exiting...")
+        else:
+            self.ui.write(" Terminating connections and exiting...")
         return 1
 
     # --------------------------------------------------------------------
