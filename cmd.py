@@ -230,9 +230,14 @@ class cmd_runner:
 
         # check if value type is correct
         try:
-            test = params.settable[args[0]] (args[1])
+            v_test = params.settable[args[0]][0] (args[1])
         except:
-            self.ui.write(" VALUE for '%s' must be of %s" % (args[0], params.settable[args[0]]))
+            self.ui.write(" VALUE for '%s' must be of %s" % (args[0], params.settable[args[0]][0]))
+            return
+
+        # check if value range is correct
+        if v_test < params.settable[args[0]][1] or v_test > params.settable[args[0]][2]:
+            self.ui.write(" %s must be between %s and %s" % (args[0], str(params.settable[args[0]][1]), str(params.settable[args[0]][2])))
             return
 
         # everything looks fine, set the parameter

@@ -2,7 +2,7 @@
 
 * 'quit force' added (closes all active connections in SOCK_FUCK_YOU mode)
 * 'stats X Y' and 'stats X' sanitized to 'stats' in remote control mode
-* 'set' now checks value type
+* 'set' now checks value type and ranges
 
 0.3.0
 

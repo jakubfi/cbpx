@@ -9,7 +9,7 @@ __version__ = "__cbpx__version__"
 # class for storing configuration provided by optparse as well as our own stuff
 class my_params:
 
-    settable = {'switch_max_time':float, 'max_queued_conns':int, 'max_open_conns':int, 'switch_delay':float, 'switch_loop_wait':float, 'net_buffer_size':int}
+    settable = {'switch_max_time':[float, 0, 10], 'max_queued_conns':[int, 10, 10000], 'max_open_conns':[int, 10, 65536], 'switch_delay':[float, 0, 1], 'switch_loop_wait':[float, 0.1, 1], 'net_buffer_size':[int, 1024, 65536]}
 
     # network:
     port = 0

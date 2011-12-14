@@ -20,7 +20,11 @@ except Exception, e:
     print "Error parsing command line: " + str(e)
     sys.exit(1)
 
-setup_logging()
+try:
+    setup_logging()
+except Exception, e:
+    print "Error starting logger: %s" % str(e)
+    sys.exit(1)
 
 l.info("cbpx startup")
 
@@ -42,7 +46,7 @@ except Exception, e:
     l.error("Error starting listener/connector threads: %s" % str(e))
     sys.exit(1)
 
-# start command interface (this is in MainThread thread, not separate thread)
+# start command interface (this is in MainThread thread, not in separate thread)
 
 try:
     if int(params.rc_port) > 0:
@@ -67,7 +71,7 @@ l.debug("Waiting for connector")
 connector.join()
 
 # the only threads alive now (except MainThread) could be active connection threads (Transport threads)
-# This is only if user quit with "force". If so, close those connections.
+# This is only if user quit with "force". If so, close these connections.
 
 for th in threading.enumerate():
     if th.getName() == "Transport":
