@@ -35,7 +35,7 @@ class cmd_runner:
         self.ui = ui
         self.commands = {
             'help' : [self.cmd_help, "Print this help"],
-            'quit' : [self.cmd_quit, "Kill the kitten"],
+            'quit' : [self.cmd_quit, "Kill the kitten. You may use 'force' option."],
             'threads' : [self.cmd_threads, "List alive threads"],
             'switch' : [self.cmd_switch, "Summon All Demons of Evil"],
             'stats' : [self.cmd_stats, "Print current statistics (stats [SLEEP] [COUNT])"],
@@ -51,12 +51,22 @@ class cmd_runner:
 
     # --------------------------------------------------------------------
     def cmd_quit(self, args):
-        if (cbpx_transporter.c_transporters > 0):
-            self.ui.write(" I won't quit with active connections. See stats.")
-            return
-        if (conn_q.qsize() > 0):
-            self.ui.write(" I won't quit with connections in queue. See stats.")
-            return
+
+        force = False
+        try:
+            if args[0] == "force":
+                force = True
+        except:
+            pass
+
+        if not force:
+            if (cbpx_transporter.c_transporters > 0):
+                self.ui.write(" I won't quit with active connections. See stats.")
+                return
+            if (conn_q.qsize() > 0):
+                self.ui.write(" I won't quit with connections in queue. See stats.")
+                returnA
+
         self.ui.write(" Exiting...")
         return 1
 
@@ -194,7 +204,7 @@ class cmd_runner:
         self.ui.write(" Log file            : %s" % params.log_file)
         self.ui.write(" Log level           : %s" % params.log_level)
         self.ui.write("")
-        self.ui.write(" Dynamic: %s" % str(params.settable))
+        self.ui.write(" Dynamic: %s" % str(params.settable.keys()))
 
     # --------------------------------------------------------------------
     def cmd_set(self, args):
@@ -216,6 +226,13 @@ class cmd_runner:
         # check if parameter can be set
         if args[0] not in params.settable:
             self.ui.write(" Paremeter is not settable: %s" % args[0])
+            return
+
+        # check if value type is correct
+        try:
+            test = params.settable[args[0]] (args[1])
+        except:
+            self.ui.write(" VALUE for '%s' must be %s" % (args[0], params.settable[args[0]]))
             return
 
         # everything looks fine, set the parameter

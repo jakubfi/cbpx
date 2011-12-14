@@ -1,3 +1,9 @@
+0.3.1
+
+* 'quit force' added (closes all active connections in SOCK_FUCK_YOU mode)
+* 'stats X Y' and 'stats X' sanitized to 'stats' in remote control mode
+* 'set' now checks value type
+
 0.3.0
 
 * fixed log levels: INFO doesn't flood log anymore, only DEBUG does (INFO is default)

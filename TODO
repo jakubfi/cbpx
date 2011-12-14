@@ -6,6 +6,7 @@ features:
 
 bugs:
 
+
 kosmetyka:
 
 * przy wychodzeniu: ERROR [Listener ] (network::run) [L:128] Error accepting connection: (22, 'Invalid argument')
@@ -14,3 +15,4 @@ do obgadania:
 
 * czy throttling taki może być? czy inaczej?
 * 'safe sleep' przed switchem
+* czy przepisać w C++ :-)

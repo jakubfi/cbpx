@@ -84,7 +84,18 @@ class ui_net(ui):
         l.info("TCP commnd connection from: %s" % str(self.rc_addr))
         l.debug("Awaiting network command...")
         line = self.rc_conn.recv(int(params.net_buffer_size))
-        return line
+        return self.sanitize(line)
+
+    # --------------------------------------------------------------------
+    def sanitize(self, command):
+        sanitized = command
+
+        # allow only one-time stats
+        if command.startswith("stats") and command != "stats":
+            l.debug("Sanitizing command: '%s'" % command)
+            sanitized = "stats"
+
+        return sanitized
 
     # --------------------------------------------------------------------
     def write(self, text):

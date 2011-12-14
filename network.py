@@ -36,7 +36,7 @@ class cbpx_transporter(Thread):
 
     # --------------------------------------------------------------------
     def __init__(self, sock_from, sock_to):
-        Thread.__init__(self)
+        Thread.__init__(self, name="Transport")
         l.debug("New transporter")
         self.sock_from = sock_from
         self.sock_to = sock_to
@@ -45,9 +45,18 @@ class cbpx_transporter(Thread):
         cbpx_transporter.c_opened_conns += 1
 
     # --------------------------------------------------------------------
+    def close(self):
+        l.debug("Closing transporter")
+        try:
+            self.sock_from.shutdown(SHUT_RDWR)
+        except Exception, e:
+            l.debug("Exception while closing transporter: %s" % str(e))
+            pass
+
+    # --------------------------------------------------------------------
     def run(self):
         l.debug("Running transporter loop")
-        while 1:
+        while True:
             try:
                 data = self.sock_from.recv(int(params.net_buffer_size))
                 if not data:
@@ -110,7 +119,7 @@ class cbpx_listener(Thread):
                 (n_sock, n_addr) = self.sock.accept()
             except Exception, e:
                 l.error("Error accepting connection: " + str(e))
-		break
+                break
 
             l.debug("New connection from: %s" % str(n_addr))
 
@@ -199,7 +208,7 @@ class cbpx_connector(Thread):
     # --------------------------------------------------------------------
     def run(self):
         l.info("Running connector")
-        while True:
+        while not cbpx_connector.quit:
             l.debug("Waiting until relay event is set")
             relay.wait()
             l.debug("Trying to get connection from queue...")

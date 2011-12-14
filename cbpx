@@ -66,7 +66,13 @@ connector.close()
 l.debug("Waiting for connector")
 connector.join()
 
+# the only threads alive now (except MainThread) could be active connection threads (Transport threads)
+# This is only if user quit with "force". If so, close those connections.
+
+for th in threading.enumerate():
+    if th.getName() == "Transport":
+        th.close()
+
 l.info("cbpx exiting")
 
-
-# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+# vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4
