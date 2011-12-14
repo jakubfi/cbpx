@@ -232,7 +232,7 @@ class cmd_runner:
         try:
             test = params.settable[args[0]] (args[1])
         except:
-            self.ui.write(" VALUE for '%s' must be %s" % (args[0], params.settable[args[0]]))
+            self.ui.write(" VALUE for '%s' must be of %s" % (args[0], params.settable[args[0]]))
             return
 
         # everything looks fine, set the parameter
