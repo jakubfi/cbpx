@@ -54,18 +54,22 @@ class cmd_runner:
 
         force = False
         try:
-            if args[0] == "force":
-                force = True
+            if args[0]:
+                if args[0] == "force":
+                    force = True
+                else:
+                    self.ui.write(" I don't know how to quit this way, sorry")
+                    return 0
         except:
             pass
 
         if not force:
             if (cbpx_transporter.c_transporters > 0):
                 self.ui.write(" I won't quit with active connections. See stats.")
-                return
+                return 0
             if (conn_q.qsize() > 0):
                 self.ui.write(" I won't quit with connections in queue. See stats.")
-                return
+                return 0
             self.ui.write(" Exiting...")
         else:
             self.ui.write(" Terminating connections and exiting...")
@@ -267,6 +271,7 @@ class cmd_runner:
             l_args = line.split(" ")[1:]
             if l_cmd and (l_cmd not in self.commands.keys()):
                 self.ui.write(" Unknown command: '%s'" % l_cmd)
+                self.ui.finish()
             else:
                 res = self.commands[l_cmd][0](l_args)
                 self.ui.finish()

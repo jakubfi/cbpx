@@ -1,3 +1,8 @@
+0.3.2
+
+* unknown command doesn't hang RC anymore
+* quit ignores options other than 'force'
+
 0.3.1
 
 * 'quit force' added (closes all active connections in SOCK_FUCK_YOU mode)

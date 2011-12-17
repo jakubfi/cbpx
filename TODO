@@ -3,9 +3,9 @@ features:
 * parametry do ustawiania, listowanie, opisy... nowa klasa z parametrami?
 * konfiguracja
 * detach from terminal in daemon mode
+* cps counters? statystyki wyniesione do osobnej klasy/wątku?
 
 bugs:
-
 
 kosmetyka:
 
