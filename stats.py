@@ -30,8 +30,7 @@ class cbpx_stats(Thread):
     # --------------------------------------------------------------------
     def __init__(self):
         l.info("Starting stats")
-        Thread.__init__(self)
-        self.setName("Stats")
+        Thread.__init__(self, name="Stats")
         self.quit = False
         self.fin = Event()
 

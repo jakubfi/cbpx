@@ -81,6 +81,8 @@ l.debug("Waiting for connector thread")
 connector.join()
 l.debug("Closing stats thread")
 stats.close()
+l.debug("Waiting for stats thread")
+stats.join()
 
 # the only threads alive now (except MainThread) could be active connection threads (Transport threads)
 # This is only if user quit with "force". If so, close these connections.
