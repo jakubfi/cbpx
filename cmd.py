@@ -6,7 +6,7 @@ import threading
 from network import cbpx_connector, cbpx_listener, cbpx_transporter, conn_q, relay, switch_finish, check_if_no_connections
 from utils import params, l
 from utils import __version__
-from th import th_sleep
+from stats import cbpx_stats
 
 
 # ------------------------------------------------------------------------
@@ -64,7 +64,7 @@ class cmd_runner:
             pass
 
         if not force:
-            if (cbpx_transporter.c_transporters > 0):
+            if (cbpx_stats.c_transporters > 0):
                 self.ui.write(" I won't quit with active connections. See stats.")
                 return 0
             if (conn_q.qsize() > 0):
@@ -118,7 +118,7 @@ class cmd_runner:
         while not relay.isSet():
             try:
                 l.debug("Switch loop wait")
-                th_sleep(float(params.switch_loop_wait))
+                threading.Event().wait(float(params.switch_loop_wait))
 
                 # print stats
                 waited = time.time() - switch_start
@@ -158,17 +158,28 @@ class cmd_runner:
             except:
                 pass
         if header:
-            self.ui.write(" SWtime Current backend       active in queue enqueued dequeued opened closed")
-            self.ui.write(" ------ --------------------- ------ -------- -------- -------- ------ ------")
-        self.ui.write(" %-6s %-21s %6i %8i %8i %8i %6i %6i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_transporter.c_transporters/2, conn_q.qsize(), cbpx_listener.c_queued_conns, cbpx_connector.c_dequeued_conns, cbpx_transporter.c_opened_conns, cbpx_transporter.c_closed_conns))
+            self.ui.write(" SWtime Current backend       active in queue enqueued dequeued avgcps   cps")
+            self.ui.write(" ------ --------------------- ------ -------- -------- -------- ------ -----")
+        self.ui.write(" %-6s %-21s %6i %8i %8i %8i %6i %5i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_stats.c_transporters/2, conn_q.qsize(), cbpx_stats.c_qc, cbpx_stats.c_dqc, cbpx_stats.a_qc, cbpx_stats.s_qc))
 
     # --------------------------------------------------------------------
     def cmd_stats(self, args):
 
         try:
             maxloop = int(args[1])
+            if maxloop < 1:
+                self.ui.write(" Stats loop count should be >= 1")
+                return
         except:
             maxloop = 0
+
+        try:
+            sleep = float(args[0])
+            if sleep < 0.1:
+                self.ui.write(" Stats loop sleep should be >= 0.1")
+                return
+        except Exception, e:
+            sleep = 0
 
         cnt = 0
 
@@ -179,7 +190,7 @@ class cmd_runner:
                 self.print_stats(False, -1)
             cnt += 1
             try:
-                th_sleep(float(args[0]))
+                threading.Event().wait(float(args[0]))
                 if maxloop and cnt >= maxloop:
                     break
             except Exception, e:

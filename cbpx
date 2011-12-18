@@ -8,6 +8,7 @@ from utils import params, l, parse_cmdline, setup_logging
 from network import cbpx_connector, cbpx_listener
 from cmd import cmd_runner
 from ui import ui_net, ui_readline
+from stats import cbpx_stats
 
 # ------------------------------------------------------------------------
 # --- MAIN ---------------------------------------------------------------
@@ -27,6 +28,15 @@ except Exception, e:
     sys.exit(1)
 
 l.info("cbpx startup")
+
+# start statistics thread
+try:
+    stats = cbpx_stats()
+    stats.start()
+except Exception, e:
+    print"Error starting statistics: %s" % str(e)
+    l.error("Error starting statistics: %s" % str(e))
+    sys.exit(1)
 
 # start proxy listener and connector threads
 
@@ -53,7 +63,7 @@ try:
         l.info("Starting command runner with network user interface")
         cmd_runner(ui_net()).run()
     else:
-        l.info("Starting commend runner with readline user interface")
+        l.info("Starting command runner with readline user interface")
         cmd_runner(ui_readline()).run()
 except Exception, e:
     print "Error running command interface: %s" % str(e)
@@ -61,14 +71,16 @@ except Exception, e:
     # no sys.exit() here, we need to clean up things a bit
 
 # cleanup and exit
-l.debug("Closing listener")
+l.debug("Closing listener thread")
 listener.close()
-l.debug("Waiting for listener")
+l.debug("Waiting for listener thread")
 listener.join()
-l.debug("Closing connector")
+l.debug("Closing connector thread")
 connector.close()
-l.debug("Waiting for connector")
+l.debug("Waiting for connector thread")
 connector.join()
+l.debug("Closing stats thread")
+stats.close()
 
 # the only threads alive now (except MainThread) could be active connection threads (Transport threads)
 # This is only if user quit with "force". If so, close these connections.

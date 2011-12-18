@@ -7,6 +7,7 @@ from Queue import *
 
 from utils import params, l
 from th import DescEvent
+from stats import cbpx_stats
 
 
 conn_q = Queue()
@@ -15,7 +16,7 @@ switch_finish = Lock()
 
 # --------------------------------------------------------------------
 def check_if_no_connections():
-    if cbpx_transporter.c_transporters == 0:
+    if cbpx_stats.c_transporters == 0:
         l.debug("No more connections")
         # stopped relaying means we're switching backends
         if not relay.isSet():
@@ -30,10 +31,6 @@ def check_if_no_connections():
 # ------------------------------------------------------------------------
 class cbpx_transporter(Thread):
 
-    c_transporters = 0
-    c_opened_conns = 0
-    c_closed_conns = 0
-
     # --------------------------------------------------------------------
     def __init__(self, sock_from, sock_to):
         Thread.__init__(self, name="Transport")
@@ -41,8 +38,7 @@ class cbpx_transporter(Thread):
         self.sock_from = sock_from
         self.sock_to = sock_to
 
-        cbpx_transporter.c_transporters += 1
-        cbpx_transporter.c_opened_conns += 1
+        cbpx_stats.c_transporters += 1
 
     # --------------------------------------------------------------------
     def close(self):
@@ -77,15 +73,12 @@ class cbpx_transporter(Thread):
             l.error("The other transporter shutdown failed: %s" % str(e))
 
         switch_finish.acquire()
-        cbpx_transporter.c_transporters -= 1
-        cbpx_transporter.c_closed_conns += 1
+        cbpx_stats.c_transporters -= 1
         check_if_no_connections()
         switch_finish.release()
 
 # ------------------------------------------------------------------------
 class cbpx_listener(Thread):
-
-    c_queued_conns = 0
 
     # --------------------------------------------------------------------
     def __init__(self, port):
@@ -135,7 +128,7 @@ class cbpx_listener(Thread):
 
             try:
                 conn_q.put([n_sock, n_addr], False)
-                cbpx_listener.c_queued_conns += 1
+                cbpx_stats.c_qc += 1
                 l.debug("Enqueued connection: %s" % str(n_addr))
 
             except Full:
@@ -155,7 +148,6 @@ class cbpx_listener(Thread):
 # ------------------------------------------------------------------------
 class cbpx_connector(Thread):
 
-    c_dequeued_conns = 0
     backends = []
     backend = 0
     quit = 0
@@ -198,12 +190,12 @@ class cbpx_connector(Thread):
 
     # --------------------------------------------------------------------
     def throttle(self):
-        active_conns = cbpx_transporter.c_transporters/2
+        active_conns = cbpx_stats.c_transporters/2
         throttle_step = 0.01
         l.debug("Throttle?: %i connections (%i limit)" % (active_conns, int(params.max_open_conns)))
         while active_conns >= int(params.max_open_conns):
             time.sleep(throttle_step)
-            active_conns = cbpx_transporter.c_transporters/2
+            active_conns = cbpx_stats.c_transporters/2
 
     # --------------------------------------------------------------------
     def run(self):
@@ -216,7 +208,7 @@ class cbpx_connector(Thread):
                 # throttle if throttling enabled
                 if int(params.max_open_conns) > 0: self.throttle()
                 i = conn_q.get(True, 1)
-                cbpx_connector.c_dequeued_conns += 1
+                cbpx_stats.c_dqc += 1
                 l.debug("Dequeue connection: %s (%i in queue)" % (str(i[1]), conn_q.qsize()))
                 switch_finish.acquire()
                 self.process_connection(i[0], i[1])
@@ -230,4 +222,4 @@ class cbpx_connector(Thread):
         l.info("Exiting connector loop")
 
 
-# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+# vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

@@ -28,11 +28,4 @@ class DescEvent(_Event):
         return reason
 
 
-# --------------------------------------------------------------------
-# threaded version of time.sleep()
-def th_sleep(time):
-    e = Event()
-    Timer(time, e.set).start()
-    e.wait()
-
 # vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4

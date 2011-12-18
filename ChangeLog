@@ -1,3 +1,9 @@
+0.3.3
+
+* statistics moved to separate class
+* connections per second counted
+* 'stats' in loop mode checks if arguments are ok
+
 0.3.2
 
 * unknown command doesn't hang RC anymore
