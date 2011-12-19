@@ -5,7 +5,7 @@ import logging
 import threading
 
 from utils import params, l, parse_cmdline, setup_logging
-from network import cbpx_connector, cbpx_listener
+from network import cbpx_connector, cbpx_listener, cbpx_transporter
 from cmd import cmd_runner
 from ui import ui_net, ui_readline
 from stats import cbpx_stats
@@ -43,8 +43,12 @@ except Exception, e:
 try:
     backends = [(params.active_ip, params.active_port), (params.standby_ip, params.standby_port)]
 
+    l.info("Launching Transporter")
+    transporter = cbpx_transporter()
+    transporter.start()
+
     l.info("Launching Connector")
-    connector = cbpx_connector(backends)
+    connector = cbpx_connector(backends, transporter)
     connector.start()
 
     l.info("Launching Listener")
@@ -52,8 +56,8 @@ try:
     listener.start()
 
 except Exception, e:
-    print "Error starting listener/connector threads: %s" % str(e)
-    l.error("Error starting listener/connector threads: %s" % str(e))
+    print "Error starting listener/connector/transporter threads: %s" % str(e)
+    l.error("Error starting listener/connector/transporter threads: %s" % str(e))
     sys.exit(1)
 
 # start command interface (this is in MainThread thread, not in separate thread)
@@ -75,10 +79,17 @@ l.debug("Closing listener thread")
 listener.close()
 l.debug("Waiting for listener thread")
 listener.join()
+
 l.debug("Closing connector thread")
 connector.close()
 l.debug("Waiting for connector thread")
 connector.join()
+
+l.debug("Closing transporter thread")
+transporter.close()
+l.debug("Waiting for transporter thread")
+transporter.join()
+
 l.debug("Closing stats thread")
 stats.close()
 l.debug("Waiting for stats thread")

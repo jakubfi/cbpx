@@ -1,8 +1,9 @@
 import time
 import logging
+import select
 
 from socket import *
-from threading import Thread, Lock
+from threading import Thread, Lock, Event
 from Queue import *
 
 from utils import params, l
@@ -32,50 +33,90 @@ def check_if_no_connections():
 class cbpx_transporter(Thread):
 
     # --------------------------------------------------------------------
-    def __init__(self, sock_from, sock_to):
+    def __init__(self):
         Thread.__init__(self, name="Transport")
         l.debug("New transporter")
-        self.sock_from = sock_from
-        self.sock_to = sock_to
-
-        cbpx_stats.c_transporters += 1
+        self.READ_ONLY = select.POLLIN | select.POLLPRI | select.POLLERR | select.POLLHUP | select.POLLNVAL
+        self.poller = select.poll()
+        self.fd = {}
+        self.quit = False
+        self.tracked = 0
 
     # --------------------------------------------------------------------
     def close(self):
         l.debug("Closing transporter")
-        try:
-            self.sock_from.shutdown(SHUT_RDWR)
-        except Exception, e:
-            l.debug("Exception while closing transporter: %s" % str(e))
-            pass
+        self.quit = True
 
     # --------------------------------------------------------------------
-    def run(self):
-        l.debug("Running transporter loop")
-        while True:
-            try:
-                data = self.sock_from.recv(int(params.net_buffer_size))
-                if not data:
-                    l.debug("Transporter endpoint closed")
-                    break
-                self.sock_to.send(data)
-            except Exception, e:
-                l.error("Exception in transporter loop: %s" % str(e))
-                break
+    def add(self, backend, client):
+        self.poller.register(backend, self.READ_ONLY)
+        self.poller.register(client, self.READ_ONLY)
+        fd_backend = backend.fileno()
+        fd_client = client.fileno()
+        l.debug("Adding fd: %i %i" % (fd_backend, fd_client))
+        self.fd[fd_backend] = [backend, client, fd_client]
+        self.fd[fd_client] = [client, backend, fd_backend]
+        self.tracked += 2
+        cbpx_stats.c_transporters += 2
+        l.debug("Sockets registered: %i" % self.tracked)
 
-        l.debug("Exiting transporter loop")
-
+    # --------------------------------------------------------------------
+    def remove(self, f):
+        l.debug("Removing fd: %i" % f)
         try:
-            self.sock_to.shutdown(SHUT_RDWR)
-        except IOError, (errno, strerror):
-            l.error("The other transporter shutdown failed: I/O error(%i): %s" % (errno, strerror))
-        except Exception, e:
-            l.error("The other transporter shutdown failed: %s" % str(e))
-
-        switch_finish.acquire()
+            self.poller.unregister(f)
+            self.fd[f][0].shutdown(SHUT_RDWR)
+            self.fd[f][0].close()
+            del self.fd[f]
+        except:
+            pass
+        self.tracked -= 1
         cbpx_stats.c_transporters -= 1
-        check_if_no_connections()
-        switch_finish.release()
+        l.debug("Sockets registered: %i" % self.tracked)
+ 
+    # --------------------------------------------------------------------
+    def run(self):
+        l.info("Running transporter loop")
+        while not self.quit:
+            try:
+                rd = self.poller.poll(10)
+            except Exception, e:
+                l.warning("Exception while poll(): %s" % str(e))
+                break
+            if not rd:
+                continue
+
+            for f, event in rd:
+                if event & (select.POLLIN | select.POLLPRI):
+
+                    data = ""
+                    try:
+                        data = self.fd[f][0].recv(int(params.net_buffer_size))
+                    except Exception, e:
+                        l.warning("Exception %s while reading data: %s" % (type(e), str(e)))
+                        self.remove(f)
+                        self.remove(self.fd[f][2])
+                        continue
+
+                    if not data:
+                        self.remove(f)
+                        continue
+                    else:
+                        try:
+                            self.fd[f][1].send(data)
+                        except Exception, e:
+                            l.warning("Exception %s while transmitting data: %s" % (type(e), str(e)))
+                            self.remove(self.fd[f][2])
+                            self.remove(f)
+                            continue
+
+                elif event & (select.POLLERR | select.POLLHUP | select.POLLNVAL):
+                    self.remove(f)
+                else:
+                    l.warning("Unhandled event from poll(): %i" % event)
+                    
+                    
+
 
 # ------------------------------------------------------------------------
 class cbpx_listener(Thread):
@@ -153,9 +194,10 @@ class cbpx_connector(Thread):
     quit = 0
 
     # --------------------------------------------------------------------
-    def __init__(self, backends):
+    def __init__(self, backends, transporter):
         Thread.__init__(self, name="Connector")
         l.info("Initializing connector")
+        self.transporter = transporter
         cbpx_connector.backends = backends
         relay.set("connector started")
 
@@ -181,8 +223,7 @@ class cbpx_connector(Thread):
 
         # spawn proxy threads
         try:
-            cbpx_transporter(n_sock, fwd_sock).start()
-            cbpx_transporter(fwd_sock, n_sock).start()
+            self.transporter.add(fwd_sock, n_sock)
         except Exception, e:
             l.error("Error spawning connection threads: " + str(e))
             n_sock.close()
