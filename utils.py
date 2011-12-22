@@ -3,7 +3,7 @@ import logging
 
 l = logging.getLogger()
 
-__version__ = "__cbpx__version__"
+__version__ = "0.4.0-3threads"
 
 # ------------------------------------------------------------------------
 # class for storing configuration provided by optparse as well as our own stuff

@@ -36,8 +36,8 @@ class cbpx_transporter(Thread):
     def __init__(self):
         Thread.__init__(self, name="Transport")
         l.debug("New transporter")
-        self.READ_ONLY = select.POLLIN | select.POLLPRI | select.POLLERR | select.POLLHUP | select.POLLNVAL
-        self.poller = select.poll()
+        self.READ_ONLY = select.EPOLLIN | select.EPOLLPRI | select.EPOLLERR | select.EPOLLHUP | select.EPOLLRDBAND
+        self.poller = select.epoll()
         self.fd = {}
         self.quit = False
         self.tracked = 0
@@ -49,15 +49,20 @@ class cbpx_transporter(Thread):
 
     # --------------------------------------------------------------------
     def add(self, backend, client):
-        self.poller.register(backend, self.READ_ONLY)
-        self.poller.register(client, self.READ_ONLY)
         fd_backend = backend.fileno()
         fd_client = client.fileno()
+
         l.debug("Adding fd: %i %i" % (fd_backend, fd_client))
+
         self.fd[fd_backend] = [backend, client, fd_client]
         self.fd[fd_client] = [client, backend, fd_backend]
+
+        self.poller.register(fd_client, self.READ_ONLY)
+        self.poller.register(fd_backend, self.READ_ONLY)
+        
         self.tracked += 2
         cbpx_stats.c_transporters += 2
+        
         l.debug("Sockets registered: %i" % self.tracked)
 
     # --------------------------------------------------------------------
@@ -79,7 +84,7 @@ class cbpx_transporter(Thread):
         l.info("Running transporter loop")
         while not self.quit:
             try:
-                rd = self.poller.poll(10)
+                rd = self.poller.poll(1)
             except Exception, e:
                 l.warning("Exception while poll(): %s" % str(e))
                 break
@@ -87,7 +92,7 @@ class cbpx_transporter(Thread):
                 continue
 
             for f, event in rd:
-                if event & (select.POLLIN | select.POLLPRI):
+                if event & (select.EPOLLIN | select.EPOLLPRI):
 
                     data = ""
                     try:
@@ -95,7 +100,7 @@ class cbpx_transporter(Thread):
                     except Exception, e:
                         l.warning("Exception %s while reading data: %s" % (type(e), str(e)))
                         self.remove(f)
-                        self.remove(self.fd[f][2])
+                        #self.remove(self.fd[f][2])
                         continue
 
                     if not data:
@@ -107,15 +112,13 @@ class cbpx_transporter(Thread):
                         except Exception, e:
                             l.warning("Exception %s while transmitting data: %s" % (type(e), str(e)))
                             self.remove(self.fd[f][2])
-                            self.remove(f)
+                            #self.remove(f)
                             continue
 
-                elif event & (select.POLLERR | select.POLLHUP | select.POLLNVAL):
+                elif event & (select.EPOLLERR | select.EPOLLHUP):
                     self.remove(f)
                 else:
                     l.warning("Unhandled event from poll(): %i" % event)
-                    
-                    
 
 
 # ------------------------------------------------------------------------
@@ -158,8 +161,9 @@ class cbpx_listener(Thread):
             l.debug("New connection from: %s" % str(n_addr))
 
             # if there are more queued connections than allowed
-            if conn_q.qsize() >= int(params.max_queued_conns):
-                l.warning("Queued %i connections, limit is %i" % (conn_q.qsize(), int(params.max_queued_conns)))
+            qc = conn_q.qsize()
+            if qc >= int(params.max_queued_conns):
+                l.warning("Queued %i connections, limit is %i" % (qc, int(params.max_queued_conns)))
                 switch_finish.acquire()
                 # if we were switching, than sorry, but not anymore
                 if not relay.isSet():
