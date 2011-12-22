@@ -39,6 +39,7 @@ class cbpx_transporter(Thread):
         self.poller = select.epoll()
         self.fd = {}
         self.quit = False
+        self.dead = set()
 
     # --------------------------------------------------------------------
     def close(self):
@@ -59,43 +60,36 @@ class cbpx_transporter(Thread):
         self.poller.register(fd_backend, self.READ_ONLY)
         
         cbpx_stats.c_endpoints = len(self.fd)
-        l.debug("FDs: %i" % cbpx_stats.c_endpoints)
+
+    # --------------------------------------------------------------------
+    def mark_dead(self, f):
+        self.dead.add(f)
 
     # --------------------------------------------------------------------
     def remove(self, f):
 
-        other_fd = self.fd[f][2]
         sock = self.fd[f][0]
-        other_sock = self.fd[f][1]
 
-        l.debug("Removing fd: %i %i" % (f, other_fd))
+        l.debug("Removing fd: %i" % f)
 
+        self.poller.unregister(f)
         del self.fd[f]
-        del self.fd[other_fd]
-
-        try: self.poller.unregister(f)
-        except: pass
-        try: self.poller.unregister(other_fd)
-        except: pass
         try:
-            self.fd[f][0].shutdown(SHUT_RDWR)
-            self.fd[f][0].close()
-        except:
-            pass
-
-        try:
-            self.fd[f][1].shutdown(SHUT_RDWR)
-            self.fd[f][1].close()
+            sock.shutdown(SHUT_RDWR)
+            sock.close()
         except:
             pass
 
         cbpx_stats.c_endpoints = len(self.fd)
-        l.debug("FDs: %i" % cbpx_stats.c_endpoints)
 
-        switch_finish.acquire()
-        check_if_no_connections()
-        switch_finish.release()
- 
+    # --------------------------------------------------------------------
+    def remove_dead(self):
+        l.debug("Dead sockets to remove: %s" % str(self.dead))
+        for f in set(self.dead):
+            try: self.remove(f)
+            except: pass
+            self.dead.discard(f)
+
     # --------------------------------------------------------------------
     def kill_connections(self):
         for f in self.fd:
@@ -106,6 +100,7 @@ class cbpx_transporter(Thread):
         l.debug("Running transporter loop")
         while not self.quit:
             try:
+                # wait for events on all tracked fds
                 rd = self.poller.poll(1)
             except Exception, e:
                 l.warning("Exception while poll(): %s" % str(e))
@@ -113,38 +108,55 @@ class cbpx_transporter(Thread):
             if not rd:
                 continue
 
+            # iterate over all events returned by epoll():
             for f, event in rd:
-
+                # this shouldn't happen, but if it does, ignore and go on
                 if not self.fd.has_key(f):
+                    l.warning("epoll() returned event for non-tracked socket")
                     continue
 
+                # if wata is waiting to be read
                 if event & (select.EPOLLIN | select.EPOLLPRI | select.EPOLLRDBAND):
 
+                    # read the data
                     data = ""
                     try:
                         data = self.fd[f][0].recv(int(params.net_buffer_size))
                     except Exception, e:
                         l.warning("Exception %s while reading data: %s" % (type(e), str(e)))
-                        self.remove(f)
+                        self.mark_dead(f)
+                        self.mark_dead(self.fd[f][2])
                         continue
-
+                    # no data means connection closed
                     if not data:
-                        self.remove(f)
+                        self.mark_dead(f)
+                        self.mark_dead(self.fd[f][2])
                         continue
                     else:
+                        # pass the data to the other end
                         try:
                             self.fd[f][1].send(data)
                         except Exception, e:
                             l.warning("Exception %s while transmitting data: %s" % (type(e), str(e)))
-                            self.remove(f)
+                            self.mark_dead(self.fd[f][2])
+                            self.mark_dead(f)
                             continue
 
+                # if something different happened to an fd
                 elif event & (select.EPOLLERR | select.EPOLLHUP):
                     l.warning("Erroneous event from poll(): %i" % event)
-                    self.remove(f)
+                    self.mark_dead(f)
                 else:
                     l.warning("Unhandled event from poll(): %i" % event)
 
+            # remove connections
+            self.remove_dead()
+
+            # since we're removing connections only here, we may as well check for switch finale here
+            switch_finish.acquire()
+            check_if_no_connections()
+            switch_finish.release()
+ 
 
 # ------------------------------------------------------------------------
 class cbpx_listener(Thread):
