@@ -7,6 +7,8 @@ features:
 
 bugs:
 
+* w pętli za epoll() zamykane są sockety, które w tej samej pętli mogą chcieć
+  być obsłużone. w międzyczasie dodawane są fd o tym samym numerze...
 
 kosmetyka:
 

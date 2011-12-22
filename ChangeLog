@@ -1,3 +1,13 @@
+0.4.1 (experimental)
+
+* single transporter thread, epoll()
+* main threads moved to cbpx class, cleaned main script
+* log levels fixed: no rubbish at INFO level
+
+0.4.0 (experimental)
+
+* (internal tests: select(), poll(), epoll(), no transporters, single transporter)
+
 0.3.3
 
 * statistics moved to separate class
