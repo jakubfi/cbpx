@@ -6,7 +6,7 @@ class cbpx_stats(Thread):
 
     ticks = 0
 
-    c_transporters = 0
+    c_endpoints = 0
 
     c_qc = 0
     l_qc = 0
@@ -29,7 +29,7 @@ class cbpx_stats(Thread):
         
     # --------------------------------------------------------------------
     def __init__(self):
-        l.info("Starting stats")
+        l.debug("Starting stats")
         Thread.__init__(self, name="Stats")
         self.quit = False
         self.fin = Event()
@@ -44,7 +44,7 @@ class cbpx_stats(Thread):
 
     # --------------------------------------------------------------------
     def close(self):
-        l.info("Closing stats")
+        l.debug("Closing stats")
         self.quit = True
         
 

@@ -64,7 +64,7 @@ class cmd_runner:
             pass
 
         if not force:
-            if (cbpx_stats.c_transporters > 0):
+            if (cbpx_stats.c_endpoints > 0):
                 self.ui.write(" I won't quit with active connections. See stats.")
                 return 0
             if (conn_q.qsize() > 0):
@@ -77,16 +77,11 @@ class cmd_runner:
 
     # --------------------------------------------------------------------
     def cmd_threads(self, args):
-        workers = 0
         threads = ""
-
         for t in threading.enumerate():
-            if t.getName().startswith("Thread-"):
-                workers += 1
-            else:
-                threads = threads + ", " + t.getName()
+            threads = "%s %s" % (t.getName(), threads)
 
-        self.ui.write(" Threads: Workers: %i%s" % (workers, threads))
+        self.ui.write(" Threads: %s" % threads)
 
     # --------------------------------------------------------------------
     def cmd_switch(self, args):
@@ -160,7 +155,7 @@ class cmd_runner:
         if header:
             self.ui.write(" SWtime Current backend       active in queue enqueued dequeued avgcps   cps")
             self.ui.write(" ------ --------------------- ------ -------- -------- -------- ------ -----")
-        self.ui.write(" %-6s %-21s %6i %8i %8i %8i %6i %5i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_stats.c_transporters/2, conn_q.qsize(), cbpx_stats.c_qc, cbpx_stats.c_dqc, cbpx_stats.a_qc, cbpx_stats.s_qc))
+        self.ui.write(" %-6s %-21s %6i %8i %8i %8i %6i %5i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_stats.c_endpoints/2, conn_q.qsize(), cbpx_stats.c_qc, cbpx_stats.c_dqc, cbpx_stats.a_qc, cbpx_stats.s_qc))
 
     # --------------------------------------------------------------------
     def cmd_stats(self, args):
@@ -257,7 +252,7 @@ class cmd_runner:
             return
 
         # everything looks fine, set the parameter
-        l.info("Setting '%s' to '%s'" % (args[0], args[1]))
+        l.debug("Setting '%s' to '%s'" % (args[0], args[1]))
         try:
             params.__dict__[args[0]] = args[1]
         except Exception, e:
@@ -275,9 +270,9 @@ class cmd_runner:
     def process_command(self):
         try:
             line = self.ui.read()
-            l.info("Got command: '%s'" % line)
             if not line:
                 return
+            l.info("Got command: '%s'" % line)
             l_cmd = line.split(" ")[0]
             l_args = line.split(" ")[1:]
             if l_cmd and (l_cmd not in self.commands.keys()):

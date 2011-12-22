@@ -3,13 +3,12 @@ import logging
 import select
 
 from socket import *
-from threading import Thread, Lock, Event
+from threading import Thread, Lock
 from Queue import *
 
 from utils import params, l
 from th import DescEvent
 from stats import cbpx_stats
-
 
 conn_q = Queue()
 relay = DescEvent()
@@ -17,7 +16,7 @@ switch_finish = Lock()
 
 # --------------------------------------------------------------------
 def check_if_no_connections():
-    if cbpx_stats.c_transporters == 0:
+    if cbpx_stats.c_endpoints == 0:
         l.debug("No more connections")
         # stopped relaying means we're switching backends
         if not relay.isSet():
@@ -40,7 +39,6 @@ class cbpx_transporter(Thread):
         self.poller = select.epoll()
         self.fd = {}
         self.quit = False
-        self.tracked = 0
 
     # --------------------------------------------------------------------
     def close(self):
@@ -60,28 +58,52 @@ class cbpx_transporter(Thread):
         self.poller.register(fd_client, self.READ_ONLY)
         self.poller.register(fd_backend, self.READ_ONLY)
         
-        self.tracked += 2
-        cbpx_stats.c_transporters += 2
-        
-        l.debug("Sockets registered: %i" % self.tracked)
+        cbpx_stats.c_endpoints = len(self.fd)
+        l.debug("FDs: %i" % cbpx_stats.c_endpoints)
 
     # --------------------------------------------------------------------
     def remove(self, f):
-        l.debug("Removing fd: %i" % f)
+
+        other_fd = self.fd[f][2]
+        sock = self.fd[f][0]
+        other_sock = self.fd[f][1]
+
+        l.debug("Removing fd: %i %i" % (f, other_fd))
+
+        del self.fd[f]
+        del self.fd[other_fd]
+
+        try: self.poller.unregister(f)
+        except: pass
+        try: self.poller.unregister(other_fd)
+        except: pass
         try:
-            self.poller.unregister(f)
             self.fd[f][0].shutdown(SHUT_RDWR)
             self.fd[f][0].close()
-            del self.fd[f]
         except:
             pass
-        self.tracked -= 1
-        cbpx_stats.c_transporters -= 1
-        l.debug("Sockets registered: %i" % self.tracked)
+
+        try:
+            self.fd[f][1].shutdown(SHUT_RDWR)
+            self.fd[f][1].close()
+        except:
+            pass
+
+        cbpx_stats.c_endpoints = len(self.fd)
+        l.debug("FDs: %i" % cbpx_stats.c_endpoints)
+
+        switch_finish.acquire()
+        check_if_no_connections()
+        switch_finish.release()
  
     # --------------------------------------------------------------------
+    def kill_connections(self):
+        for f in self.fd:
+            self.remove(f)
+
+    # --------------------------------------------------------------------
     def run(self):
-        l.info("Running transporter loop")
+        l.debug("Running transporter loop")
         while not self.quit:
             try:
                 rd = self.poller.poll(1)
@@ -92,7 +114,11 @@ class cbpx_transporter(Thread):
                 continue
 
             for f, event in rd:
-                if event & (select.EPOLLIN | select.EPOLLPRI):
+
+                if not self.fd.has_key(f):
+                    continue
+
+                if event & (select.EPOLLIN | select.EPOLLPRI | select.EPOLLRDBAND):
 
                     data = ""
                     try:
@@ -100,7 +126,6 @@ class cbpx_transporter(Thread):
                     except Exception, e:
                         l.warning("Exception %s while reading data: %s" % (type(e), str(e)))
                         self.remove(f)
-                        #self.remove(self.fd[f][2])
                         continue
 
                     if not data:
@@ -111,11 +136,11 @@ class cbpx_transporter(Thread):
                             self.fd[f][1].send(data)
                         except Exception, e:
                             l.warning("Exception %s while transmitting data: %s" % (type(e), str(e)))
-                            self.remove(self.fd[f][2])
-                            #self.remove(f)
+                            self.remove(f)
                             continue
 
                 elif event & (select.EPOLLERR | select.EPOLLHUP):
+                    l.warning("Erroneous event from poll(): %i" % event)
                     self.remove(f)
                 else:
                     l.warning("Unhandled event from poll(): %i" % event)
@@ -128,26 +153,22 @@ class cbpx_listener(Thread):
     def __init__(self, port):
         Thread.__init__(self, name="Listener")
 
-        l.info("Setting up listener (backlog: %i)" % int(params.listen_backlog))
-        try:
-            self.sock = socket(AF_INET, SOCK_STREAM)
-            self.sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-            self.sock.bind(('', port))
-            self.sock.listen(int(params.listen_backlog))
-        except Exception, e:
-            l.error("Could not create listener: %s" % str(e))
-            raise IOError("Could not create listener: %s" % str(e))
+        l.debug("Setting up listener (backlog: %i)" % int(params.listen_backlog))
+        self.sock = socket(AF_INET, SOCK_STREAM)
+        self.sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        self.sock.bind(('', port))
+        self.sock.listen(int(params.listen_backlog))
 
     # --------------------------------------------------------------------
     def close(self):
-        l.info("Shutting down listener socket")
+        l.debug("Shutting down listener socket")
         self.sock.shutdown(SHUT_RDWR)
         self.sock.close()
         l.debug("Listener socket closed")
 
     # --------------------------------------------------------------------
     def run(self):
-        l.info("Running listener")
+        l.debug("Running listener")
         while True:
             l.debug("Awaiting new connection")
 
@@ -187,7 +208,7 @@ class cbpx_listener(Thread):
             except Exception, e:
                 l.warning("Exception during connection enqueue: %s" % str(e))
 
-        l.info("Exiting listener loop")
+        l.debug("Exiting listener loop")
 
 
 # ------------------------------------------------------------------------
@@ -200,7 +221,7 @@ class cbpx_connector(Thread):
     # --------------------------------------------------------------------
     def __init__(self, backends, transporter):
         Thread.__init__(self, name="Connector")
-        l.info("Initializing connector")
+        l.debug("Initializing connector")
         self.transporter = transporter
         cbpx_connector.backends = backends
         relay.set("connector started")
@@ -235,16 +256,16 @@ class cbpx_connector(Thread):
 
     # --------------------------------------------------------------------
     def throttle(self):
-        active_conns = cbpx_stats.c_transporters/2
+        active_conns = cbpx_stats.c_endpoints/2
         throttle_step = 0.01
         l.debug("Throttle?: %i connections (%i limit)" % (active_conns, int(params.max_open_conns)))
         while active_conns >= int(params.max_open_conns):
             time.sleep(throttle_step)
-            active_conns = cbpx_stats.c_transporters/2
+            active_conns = cbpx_stats.c_endpoints/2
 
     # --------------------------------------------------------------------
     def run(self):
-        l.info("Running connector")
+        l.debug("Running connector")
         while not cbpx_connector.quit:
             l.debug("Waiting until relay event is set")
             relay.wait()
@@ -262,9 +283,9 @@ class cbpx_connector(Thread):
             except Empty:
                 l.debug("Connection queue empty")
                 if cbpx_connector.quit:
-                    l.info("Breaking connector loop on quit")
+                    l.debug("Breaking connector loop on quit")
                     break
-        l.info("Exiting connector loop")
+        l.debug("Exiting connector loop")
 
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

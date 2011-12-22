@@ -1,14 +1,9 @@
-#!/usr/bin/python2.6
+#!/usr/bin/python
 
 import sys
-import logging
-import threading
 
-from utils import params, l, parse_cmdline, setup_logging
-from network import cbpx_connector, cbpx_listener, cbpx_transporter
-from cmd import cmd_runner
-from ui import ui_net, ui_readline
-from stats import cbpx_stats
+from utils import l, parse_cmdline, setup_logging
+from proxy import cbpx
 
 # ------------------------------------------------------------------------
 # --- MAIN ---------------------------------------------------------------
@@ -16,7 +11,7 @@ from stats import cbpx_stats
 
 # parse command line options
 try:
-    parse_cmdline()
+    parse_cmdline() # provides global configuration repository 'params'
 except Exception, e:
     print "Error parsing command line: " + str(e)
     sys.exit(1)
@@ -27,81 +22,30 @@ except Exception, e:
     print "Error starting logger: %s" % str(e)
     sys.exit(1)
 
-l.info("cbpx startup")
-
-# start statistics thread
-try:
-    stats = cbpx_stats()
-    stats.start()
-except Exception, e:
-    print"Error starting statistics: %s" % str(e)
-    l.error("Error starting statistics: %s" % str(e))
-    sys.exit(1)
-
-# start proxy listener and connector threads
+l.info("cbpx starting")
 
 try:
-    backends = [(params.active_ip, params.active_port), (params.standby_ip, params.standby_port)]
+    l.debug("Creating Proxy")
+    proxy = cbpx()
 
-    l.info("Launching Transporter")
-    transporter = cbpx_transporter()
-    transporter.start()
+    l.debug("Running Proxy")
+    try:
+        proxy.run()
+    except Exception, e:
+        print "Error running proxy: %s" % str(e)
+        l.error("Error running proxy: %s" % str(e))
 
-    l.info("Launching Connector")
-    connector = cbpx_connector(backends, transporter)
-    connector.start()
-
-    l.info("Launching Listener")
-    listener = cbpx_listener(params.port)
-    listener.start()
+    l.debug("Closing proxy")
+    try:
+        proxy.close()
+    except Exception, e:
+        l.warning("Error running proxy: %s" % str(e))
 
 except Exception, e:
-    print "Error starting listener/connector/transporter threads: %s" % str(e)
-    l.error("Error starting listener/connector/transporter threads: %s" % str(e))
-    sys.exit(1)
-
-# start command interface (this is in MainThread thread, not in separate thread)
-
-try:
-    if int(params.rc_port) > 0:
-        l.info("Starting command runner with network user interface")
-        cmd_runner(ui_net()).run()
-    else:
-        l.info("Starting command runner with readline user interface")
-        cmd_runner(ui_readline()).run()
-except Exception, e:
-    print "Error running command interface: %s" % str(e)
-    l.error("Error running command interface: %s" % str(e))
-    # no sys.exit() here, we need to clean up things a bit
-
-# cleanup and exit
-l.debug("Closing listener thread")
-listener.close()
-l.debug("Waiting for listener thread")
-listener.join()
-
-l.debug("Closing connector thread")
-connector.close()
-l.debug("Waiting for connector thread")
-connector.join()
-
-l.debug("Closing transporter thread")
-transporter.close()
-l.debug("Waiting for transporter thread")
-transporter.join()
-
-l.debug("Closing stats thread")
-stats.close()
-l.debug("Waiting for stats thread")
-stats.join()
-
-# the only threads alive now (except MainThread) could be active connection threads (Transport threads)
-# This is only if user quit with "force". If so, close these connections.
-
-for th in threading.enumerate():
-    if th.getName() == "Transport":
-        th.close()
+    print "Error creating proxy: %s" % str(e)
+    l.error("Error creating proxy: %s" % str(e))
 
 l.info("cbpx exiting")
+
 
 # vim: tabstop=4 expandtab shiftwidth=4 softtabstop=4

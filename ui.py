@@ -46,7 +46,7 @@ class ui_readline(ui):
 
     # --------------------------------------------------------------------
     def __init__(self):
-        l.info("Starting readline user interface")
+        l.debug("Starting readline user interface")
         self.print_logo()
         print " Ready for your commands, my master.\n"
 
@@ -65,7 +65,7 @@ class ui_net(ui):
 
     # --------------------------------------------------------------------
     def __init__(self):
-        l.info("Starting TCP user interface on port %i" % int(params.rc_port))
+        l.debug("Starting TCP user interface on port %i" % int(params.rc_port))
         self.rc_sock = socket(AF_INET, SOCK_STREAM)
         self.rc_sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         self.rc_sock.bind(('', int(params.rc_port)))
@@ -73,7 +73,7 @@ class ui_net(ui):
 
     # --------------------------------------------------------------------
     def shutdown(self):
-        l.info("Shutting down TCP user interface")
+        l.debug("Shutting down TCP user interface")
         self.rc_sock.shutdown(SHUT_RDWR)
         self.rc_sock.close()
 
@@ -81,7 +81,7 @@ class ui_net(ui):
     def read(self):
         l.debug("Awaiting TCP command connection...")
         (self.rc_conn, self.rc_addr) = self.rc_sock.accept()
-        l.info("TCP commnd connection from: %s" % str(self.rc_addr))
+        l.debug("TCP commnd connection from: %s" % str(self.rc_addr))
         l.debug("Awaiting network command...")
         line = self.rc_conn.recv(int(params.net_buffer_size))
         return self.sanitize(line)

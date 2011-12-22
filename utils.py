@@ -3,7 +3,7 @@ import logging
 
 l = logging.getLogger()
 
-__version__ = "0.4.0-3threads"
+__version__ = "0.4.1"
 
 # ------------------------------------------------------------------------
 # class for storing configuration provided by optparse as well as our own stuff
@@ -18,6 +18,7 @@ class my_params:
     standby = ''
     active_ip = ''
     active_port = ''
+    backends = []
     standby_ip = ''
     standby_port = ''
     listen_backlog = '512'
@@ -29,8 +30,6 @@ class my_params:
     switch_max_time = ''
     switch_delay = '0.3'
     switch_loop_wait = '0.1'
-
-    # throttle
 
     # logging
     log_file = 'cbpx.log'
@@ -88,6 +87,8 @@ def parse_cmdline():
         params.standby_port = int(params.standby.split(":")[1])
     except Exception, e:
         raise SyntaxError("specify standby backend as IP:PORT, not '%s'\nException: %s" % (params.standby, str(e)))
+
+    params.backends = [(params.active_ip, params.active_port), (params.standby_ip, params.standby_port)]
 
 # ------------------------------------------------------------------------
 def setup_logging():
