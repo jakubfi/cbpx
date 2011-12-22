@@ -1,3 +1,8 @@
+0.4.2
+
+* dead connection removing moved outside the epoll() loop
+* release tool #-es l.debug lines for performance ;-)
+
 0.4.1 (experimental)
 
 * single transporter thread, epoll()
