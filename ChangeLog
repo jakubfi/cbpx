@@ -1,3 +1,7 @@
+0.4.3
+
+* transporter loop optimized by removing few calls and one unnecessary check
+
 0.4.2
 
 * dead connection removing moved outside the epoll() loop

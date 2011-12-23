@@ -35,7 +35,9 @@ class cbpx_transporter(Thread):
     def __init__(self):
         Thread.__init__(self, name="Transport")
         l.debug("New transporter")
-        self.READ_ONLY = select.EPOLLIN | select.EPOLLPRI | select.EPOLLERR | select.EPOLLHUP | select.EPOLLRDBAND
+        self.EPOLL_EVENTS = select.EPOLLIN | select.EPOLLPRI | select.EPOLLERR | select.EPOLLHUP | select.EPOLLRDBAND
+        self.DATA_READY = select.EPOLLIN | select.EPOLLPRI | select.EPOLLRDBAND
+        self.CONN_STATE = select.EPOLLERR | select.EPOLLHUP
         self.poller = select.epoll()
         self.fd = {}
         self.quit = False
@@ -56,14 +58,10 @@ class cbpx_transporter(Thread):
         self.fd[fd_backend] = [backend, client, fd_client]
         self.fd[fd_client] = [client, backend, fd_backend]
 
-        self.poller.register(fd_client, self.READ_ONLY)
-        self.poller.register(fd_backend, self.READ_ONLY)
+        self.poller.register(fd_client, self.EPOLL_EVENTS)
+        self.poller.register(fd_backend, self.EPOLL_EVENTS)
         
         cbpx_stats.c_endpoints = len(self.fd)
-
-    # --------------------------------------------------------------------
-    def mark_dead(self, f):
-        self.dead.add(f)
 
     # --------------------------------------------------------------------
     def remove(self, f):
@@ -93,30 +91,29 @@ class cbpx_transporter(Thread):
     # --------------------------------------------------------------------
     def kill_connections(self):
         for f in self.fd:
-            self.remove(f)
+            try: self.remove(f)
+            except: pass
 
     # --------------------------------------------------------------------
     def run(self):
         l.debug("Running transporter loop")
         while not self.quit:
+
+            # wait for events on all tracked fds
             try:
-                # wait for events on all tracked fds
                 rd = self.poller.poll(1)
             except Exception, e:
                 l.warning("Exception while poll(): %s" % str(e))
                 break
+
             if not rd:
                 continue
 
             # iterate over all events returned by epoll():
             for f, event in rd:
-                # this shouldn't happen, but if it does, ignore and go on
-                if not self.fd.has_key(f):
-                    l.warning("epoll() returned event for non-tracked socket")
-                    continue
 
                 # if wata is waiting to be read
-                if event & (select.EPOLLIN | select.EPOLLPRI | select.EPOLLRDBAND):
+                if event & self.DATA_READY:
 
                     # read the data
                     data = ""
@@ -124,13 +121,14 @@ class cbpx_transporter(Thread):
                         data = self.fd[f][0].recv(int(params.net_buffer_size))
                     except Exception, e:
                         l.warning("Exception %s while reading data: %s" % (type(e), str(e)))
-                        self.mark_dead(f)
-                        self.mark_dead(self.fd[f][2])
+                        self.dead.add(f)
+                        self.dead.add(self.fd[f][2])
                         continue
+
                     # no data means connection closed
                     if not data:
-                        self.mark_dead(f)
-                        self.mark_dead(self.fd[f][2])
+                        self.dead.add(f)
+                        self.dead.add(self.fd[f][2])
                         continue
                     else:
                         # pass the data to the other end
@@ -138,14 +136,14 @@ class cbpx_transporter(Thread):
                             self.fd[f][1].send(data)
                         except Exception, e:
                             l.warning("Exception %s while transmitting data: %s" % (type(e), str(e)))
-                            self.mark_dead(self.fd[f][2])
-                            self.mark_dead(f)
+                            self.dead.add(self.fd[f][2])
+                            self.dead.add(f)
                             continue
 
                 # if something different happened to an fd
-                elif event & (select.EPOLLERR | select.EPOLLHUP):
+                elif event & self.CONN_STATE:
                     l.warning("Erroneous event from poll(): %i" % event)
-                    self.mark_dead(f)
+                    self.dead.add(f)
                 else:
                     l.warning("Unhandled event from poll(): %i" % event)
 
@@ -210,7 +208,7 @@ class cbpx_listener(Thread):
                 l.debug("Enqueued connection: %s" % str(n_addr))
 
             except Full:
-                l.error("Queue is full with %i elements!" % conn_q.qsize())
+                l.error("Queue is full with %i elements!" % qc)
                 switch_finish.acquire()
                 if not relay.isSet():
                     l.info("Enabling relaying")

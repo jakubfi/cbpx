@@ -16,6 +16,7 @@ except Exception, e:
     print "Error parsing command line: " + str(e)
     sys.exit(1)
 
+# setup logging
 try:
     setup_logging()
 except Exception, e:
@@ -24,6 +25,7 @@ except Exception, e:
 
 l.info("cbpx starting")
 
+# run proxy
 try:
     l.debug("Creating Proxy")
     proxy = cbpx()
