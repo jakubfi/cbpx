@@ -208,7 +208,7 @@ class cbpx_listener(Thread):
                 l.debug("Enqueued connection: %s" % str(n_addr))
 
             except Full:
-                l.error("Queue is full with %i elements!" % qc)
+                l.error("Queue is full with %i elements!" % conn_q.qsize())
                 switch_finish.acquire()
                 if not relay.isSet():
                     l.info("Enabling relaying")

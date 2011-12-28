@@ -1,6 +1,6 @@
 0.4.3
 
-* transporter loop optimized by removing few calls and one unnecessary check
+* fixed call to Queue.qsize()
 
 0.4.2
 
