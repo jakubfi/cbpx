@@ -1,3 +1,8 @@
+0.4.5
+
+* added RelayGate, reworked locking on relay
+* backends moved to RelayGate
+
 0.4.4
 
 * transporter loop optimized by removing few calls and one unnecessary check

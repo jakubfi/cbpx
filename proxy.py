@@ -30,7 +30,7 @@ class cbpx:
 
         try:
             l.debug("Proxy setting up Connector")
-            self.connector = cbpx_connector(params.backends, self.transporter)
+            self.connector = cbpx_connector(params.active_ip, params.active_port, params.standby_ip, params.standby_port, self.transporter)
         except Exception, e:
             raise RuntimeError("Error setting up connector: %s" % str(e))
 

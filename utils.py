@@ -18,7 +18,6 @@ class my_params:
     standby = ''
     active_ip = ''
     active_port = ''
-    backends = []
     standby_ip = ''
     standby_port = ''
     listen_backlog = '512'
@@ -87,8 +86,6 @@ def parse_cmdline():
         params.standby_port = int(params.standby.split(":")[1])
     except Exception, e:
         raise SyntaxError("specify standby backend as IP:PORT, not '%s'\nException: %s" % (params.standby, str(e)))
-
-    params.backends = [(params.active_ip, params.active_port), (params.standby_ip, params.standby_port)]
 
 # ------------------------------------------------------------------------
 def setup_logging():

@@ -26,10 +26,9 @@ class SwitchTimer(threading._Timer):
 
     # --------------------------------------------------------------------
     def timeout_action(self):
-        if not relay.isSet():
-            relay.set("switch timeout")
-            kill_script()
-            l.warning("Switch time exceeded")
+        relay.set("switch timeout")
+        kill_script()
+        l.debug("Switch timer done")
 
 
 # ------------------------------------------------------------------------
@@ -90,11 +89,12 @@ class cmd_runner:
 
     # --------------------------------------------------------------------
     def cmd_switch(self, args):
-        active = cbpx_connector.backend
-        standby = int(not cbpx_connector.backend)
+        active = relay.get_active()
+        (ai, ap) = active
+        (si, sp) = relay.get_standby()
 
-        self.ui.write(" Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer\n" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
-        l.info("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (cbpx_connector.backends[active][0], cbpx_connector.backends[active][1], cbpx_connector.backends[standby][0], cbpx_connector.backends[standby][1], float(params.switch_max_time), int(params.max_queued_conns)))
+        self.ui.write(" Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer\n" % (ai, ap, si, sp, float(params.switch_max_time), int(params.max_queued_conns)))
+        l.info("Starting switch: %s:%i -> %s:%i, timeout: %2.2f s, %i connections buffer" % (ai, ap, si, sp, float(params.switch_max_time), int(params.max_queued_conns)))
 
         # stop relaying connections now
         relay.clear("switch started")
@@ -133,7 +133,7 @@ class cmd_runner:
 
         # check what happened and report to user
         reason = relay.get_reason()
-        if cbpx_connector.backend == active:
+        if relay.get_active() == active:
             l.warning("Backend not switched: %s" % reason)
             self.ui.write("\n Switch failed: %s" % reason)
         else:
@@ -152,7 +152,8 @@ class cmd_runner:
         if header:
             self.ui.write(" SWtime Current backend       active in queue ->cps cps->")
             self.ui.write(" ------ --------------------- ------ -------- ----- -----")
-        self.ui.write(" %-6s %-21s %6i %8i %5i %5i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_stats.c_endpoints/2, conn_q.qsize(), cbpx_stats.s_qc, cbpx_stats.s_dqc))
+        (ai, ap) = relay.get_active()
+        self.ui.write(" %-6s %-21s %6i %8i %5i %5i" % (sw, ai + ":" + str(ap), cbpx_stats.c_endpoints/2, conn_q.qsize(), cbpx_stats.s_qc, cbpx_stats.s_dqc))
 
     # --------------------------------------------------------------------
     def cmd_stats(self, args):
