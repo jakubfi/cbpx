@@ -50,6 +50,7 @@ def switch_finalize():
 
     l.info("Script exit: %i" % r)
     if r is None:
+        # shouldn't happen
         relay.set("unexpected script finish with no return code")
     if r < 0:
         # terminated
@@ -60,6 +61,7 @@ def switch_finalize():
     else:
         # switch is done, change backend
         relay.switch_backend("all connections closed, script returned: %i" % r)
+
     l.info("Switch finalize script done.")
 
 
@@ -68,8 +70,8 @@ class cbpx_transporter(Thread):
 
     # --------------------------------------------------------------------
     def __init__(self):
-        Thread.__init__(self, name="Transport")
         l.debug("New transporter")
+        Thread.__init__(self, name="Transport")
         self.EPOLL_EVENTS = select.EPOLLIN | select.EPOLLPRI | select.EPOLLERR | select.EPOLLHUP | select.EPOLLRDBAND
         self.DATA_READY = select.EPOLLIN | select.EPOLLPRI | select.EPOLLRDBAND
         self.CONN_STATE = select.EPOLLERR | select.EPOLLHUP
