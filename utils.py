@@ -3,13 +3,13 @@ import logging
 
 l = logging.getLogger()
 
-__version__ = "0.4.1"
+__version__ = "0.4.4-pre"
 
 # ------------------------------------------------------------------------
 # class for storing configuration provided by optparse as well as our own stuff
 class my_params:
 
-    settable = {'switch_max_time':[float, 0, 10], 'max_queued_conns':[int, 10, 10000], 'max_open_conns':[int, 10, 65536], 'switch_delay':[float, 0, 1], 'switch_loop_wait':[float, 0.1, 1], 'net_buffer_size':[int, 1024, 65536]}
+    settable = {'switch_max_time':[float, 0, 10], 'max_queued_conns':[int, 10, 10000], 'max_open_conns':[int, 10, 65536], 'switch_loop_wait':[float, 0.1, 1], 'net_buffer_size':[int, 1024, 65536]}
 
     # network:
     port = 0
@@ -28,8 +28,8 @@ class my_params:
     max_queued_conns = ''
     max_open_conns = ''
     switch_max_time = ''
-    switch_delay = '0.3'
     switch_loop_wait = '0.1'
+    switch_script = ''
 
     # logging
     log_file = 'cbpx.log'
@@ -52,10 +52,10 @@ def parse_cmdline():
 
     parser.add_option('-b', '--listen_backlog', help='backlog for listen()')
     parser.add_option('-n', '--net_buffer_size', help='network communication buffer size')
-    parser.add_option('-d', '--switch_delay', help='delay between last connection and switch finish')
     parser.add_option('-w', '--switch_loop_wait', help='wait in switch loop')
     parser.add_option('-f', '--log_file', help='log file name')
     parser.add_option('-l', '--log_level', help='log level: %s' % str(my_params.log_levels))
+    parser.add_option('-x', '--switch_script', help='script to execute before switch completion (optional)')
 
     (params, args) = parser.parse_args(values=my_params)
 

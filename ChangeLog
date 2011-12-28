@@ -1,3 +1,12 @@
+0.4.4
+
+* transporter loop optimized by removing few calls and one unnecessary check
+* switch exec script added
+* stats: removed avgcps, added dequeued connections per second
+* stats: able to use better resolution
+* stats: removed enqueued/dequeued
+* removed conn_lock lock
+
 0.4.3
 
 * fixed call to Queue.qsize()

@@ -4,6 +4,7 @@ from utils import l
 # ------------------------------------------------------------------------
 class cbpx_stats(Thread):
 
+    sleep = 1
     ticks = 0
 
     c_endpoints = 0
@@ -11,22 +12,11 @@ class cbpx_stats(Thread):
     c_qc = 0
     l_qc = 0
     s_qc = 0
-    a_qc = 0.0
 
     c_dqc = 0
     l_dqc = 0
     s_dqc = 0
-    a_dqc = 0.0
 
-    # --------------------------------------------------------------------
-    def process(self):
-        cbpx_stats.s_qc = cbpx_stats.c_qc - cbpx_stats.l_qc
-        cbpx_stats.s_dqc = cbpx_stats.c_dqc - cbpx_stats.l_dqc
-        cbpx_stats.a_qc = cbpx_stats.c_qc / cbpx_stats.ticks
-        cbpx_stats.a_dqc = cbpx_stats.c_dqc / cbpx_stats.ticks
-        cbpx_stats.l_qc = cbpx_stats.c_qc
-        cbpx_stats.l_dqc = cbpx_stats.c_dqc
-        
     # --------------------------------------------------------------------
     def __init__(self):
         l.debug("Starting stats")
@@ -38,9 +28,13 @@ class cbpx_stats(Thread):
     def run(self):
         while not self.quit:
             l.debug("Waiting for stats timer...")
-            self.fin.wait(1)
-            cbpx_stats.ticks += 1
-            self.process()
+            self.fin.wait(cbpx_stats.sleep)
+            #cbpx_stats.ticks += 1
+
+            cbpx_stats.s_qc = (cbpx_stats.c_qc - cbpx_stats.l_qc) * (1/cbpx_stats.sleep)
+            cbpx_stats.s_dqc = (cbpx_stats.c_dqc - cbpx_stats.l_dqc) * (1/cbpx_stats.sleep)
+            cbpx_stats.l_qc = cbpx_stats.c_qc
+            cbpx_stats.l_dqc = cbpx_stats.c_dqc
 
     # --------------------------------------------------------------------
     def close(self):

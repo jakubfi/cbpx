@@ -1,9 +1,11 @@
+import os
 import time
 import logging
 import select
+import subprocess
 
 from socket import *
-from threading import Thread, Lock
+from threading import Thread, Lock, Event
 from Queue import *
 
 from utils import params, l
@@ -12,21 +14,66 @@ from stats import cbpx_stats
 
 conn_q = Queue()
 relay = DescEvent()
-switch_finish = Lock()
+script = None
 
 # --------------------------------------------------------------------
-def check_if_no_connections():
-    if cbpx_stats.c_endpoints == 0:
-        l.debug("No more connections")
-        # stopped relaying means we're switching backends
-        if not relay.isSet():
-            l.info("We were switching, so switch is done.")
+def kill_script():
+    l.debug("Trying to kill switch finalize script (just in case)")
+    global script
+    try: script.kill()
+    except: pass
+
+# --------------------------------------------------------------------
+def switch_finalize():
+
+    if not params.switch_script:
+        l.info("No switch finalize script to run, finishing switch immediately")
+        cbpx_connector.backend = int(not cbpx_connector.backend)
+        relay.set("all connections closed")
+        return
+
+    try:
+        global script
+
+        devnull = open(os.devnull, "rw")
+
+        active = cbpx_connector.backend
+        standby = int(not cbpx_connector.backend)
+        ai = str(cbpx_connector.backends[active][0])
+        ap = str(cbpx_connector.backends[active][1])
+        si = str(cbpx_connector.backends[standby][0])
+        sp = str(cbpx_connector.backends[standby][1])
+
+        l.info("Running script: '%s' with arguments: %s %s %s %s" % (params.switch_script, ai, ap, si, sp))
+
+        script = subprocess.Popen([params.switch_script, ai, ap, si, sp], stdin=devnull, stdout=devnull, stderr=devnull, close_fds=True, shell=False, cwd=None, env=None, universal_newlines=False, startupinfo=None, creationflags=0)
+        r = script.wait()
+    except Exception, e:
+        l.error("Exception while executing switch finalize script (%s): %s" % (params.switch_script, str(e)))
+        relay.set("script exec failed: %s" % str(e))
+        return
+
+    l.info("Script exit: %i" % r)
+    if not relay.isSet():
+        if r is None:
+            relay.set("unexpected script finish with no return code")
+        if r < 0:
+            # terminated
+            relay.set("script terminated by signal: %i" % -r)
+        elif r > 0:
+            # exited with error
+            relay.set("script exited with code: %i" % r)
+        else:
+            # switch is done
             # change backend first
             cbpx_connector.backend = int(not cbpx_connector.backend)
-            l.info("Sleeping %2.2f before finishing switch" % float(params.switch_delay))
-            time.sleep(float(params.switch_delay))
             # let the connections be established
-            relay.set("all connections closed")
+            relay.set("all connections closed, script returned: %i" % r)
+        l.info("Switch finalize script done.")
+    else:
+        l.info("Switch finalize script done, but switch terminated in the meantime")
+        pass
+
 
 # ------------------------------------------------------------------------
 class cbpx_transporter(Thread):
@@ -42,6 +89,7 @@ class cbpx_transporter(Thread):
         self.fd = {}
         self.quit = False
         self.dead = set()
+        self.conn_lock = Lock()
 
     # --------------------------------------------------------------------
     def close(self):
@@ -55,6 +103,8 @@ class cbpx_transporter(Thread):
 
         l.debug("Adding fd: %i %i" % (fd_backend, fd_client))
 
+        self.conn_lock.acquire()
+
         self.fd[fd_backend] = [backend, client, fd_client]
         self.fd[fd_client] = [client, backend, fd_backend]
 
@@ -63,8 +113,11 @@ class cbpx_transporter(Thread):
         
         cbpx_stats.c_endpoints = len(self.fd)
 
+        self.conn_lock.release()
+
     # --------------------------------------------------------------------
     def remove(self, f):
+        self.conn_lock.acquire()
 
         sock = self.fd[f][0]
 
@@ -79,6 +132,8 @@ class cbpx_transporter(Thread):
             pass
 
         cbpx_stats.c_endpoints = len(self.fd)
+
+        self.conn_lock.release()
 
     # --------------------------------------------------------------------
     def remove_dead(self):
@@ -96,18 +151,17 @@ class cbpx_transporter(Thread):
 
     # --------------------------------------------------------------------
     def run(self):
+
+        rd = []
+
         l.debug("Running transporter loop")
         while not self.quit:
 
             # wait for events on all tracked fds
             try:
-                rd = self.poller.poll(1)
+                rd = self.poller.poll(0.2)
             except Exception, e:
                 l.warning("Exception while poll(): %s" % str(e))
-                break
-
-            if not rd:
-                continue
 
             # iterate over all events returned by epoll():
             for f, event in rd:
@@ -151,9 +205,8 @@ class cbpx_transporter(Thread):
             self.remove_dead()
 
             # since we're removing connections only here, we may as well check for switch finale here
-            switch_finish.acquire()
-            check_if_no_connections()
-            switch_finish.release()
+            if (cbpx_stats.c_endpoints == 0) and (not relay.isSet()):
+                switch_finalize()
  
 
 # ------------------------------------------------------------------------
@@ -195,12 +248,10 @@ class cbpx_listener(Thread):
             qc = conn_q.qsize()
             if qc >= int(params.max_queued_conns):
                 l.warning("Queued %i connections, limit is %i" % (qc, int(params.max_queued_conns)))
-                switch_finish.acquire()
                 # if we were switching, than sorry, but not anymore
                 if not relay.isSet():
                     l.info("Enabling relaying")
                     relay.set("connection limit reached")
-                switch_finish.release()
 
             try:
                 conn_q.put([n_sock, n_addr], False)
@@ -208,12 +259,10 @@ class cbpx_listener(Thread):
                 l.debug("Enqueued connection: %s" % str(n_addr))
 
             except Full:
-                l.error("Queue is full with %i elements!" % conn_q.qsize())
-                switch_finish.acquire()
+                l.error("Queue is full with %i elements!" % qc)
                 if not relay.isSet():
                     l.info("Enabling relaying")
                     relay.set("connection queue full")
-                switch_finish.release()
 
             except Exception, e:
                 l.warning("Exception during connection enqueue: %s" % str(e))
@@ -286,9 +335,7 @@ class cbpx_connector(Thread):
                 i = conn_q.get(True, 1)
                 cbpx_stats.c_dqc += 1
                 l.debug("Dequeue connection: %s (%i in queue)" % (str(i[1]), conn_q.qsize()))
-                switch_finish.acquire()
                 self.process_connection(i[0], i[1])
-                switch_finish.release()
                 conn_q.task_done()
             except Empty:
                 l.debug("Connection queue empty")

@@ -3,7 +3,7 @@ import readline
 import logging
 import threading
 
-from network import cbpx_connector, cbpx_listener, cbpx_transporter, conn_q, relay, switch_finish, check_if_no_connections
+from network import cbpx_connector, cbpx_listener, cbpx_transporter, conn_q, relay, kill_script
 from utils import params, l
 from utils import __version__
 from stats import cbpx_stats
@@ -19,12 +19,17 @@ class SwitchTimer(threading._Timer):
         self.setName("SWTimer")
 
     # --------------------------------------------------------------------
+    def cancel(self):
+        l.debug("canceling switch timer")
+        threading._Timer.cancel(self)
+        kill_script()
+
+    # --------------------------------------------------------------------
     def timeout_action(self):
-        switch_finish.acquire()
         if not relay.isSet():
             relay.set("switch timeout")
+            kill_script()
             l.warning("Switch time exceeded")
-        switch_finish.release()
 
 
 # ------------------------------------------------------------------------
@@ -94,12 +99,6 @@ class cmd_runner:
         # stop relaying connections now
         relay.clear("switch started")
 
-        # check for 'dry switch' with no connections
-        l.debug("Checking first for no connections")
-        switch_finish.acquire()
-        check_if_no_connections()
-        switch_finish.release()
-
         # set the timer for max switch time
         switch_timer = SwitchTimer(float(params.switch_max_time))
         switch_timer.start()
@@ -126,9 +125,7 @@ class cmd_runner:
             except KeyboardInterrupt:
                 l.warning("Ctrl-c in switch loop, break")
                 self.ui.write(" Ctrl-c")
-                switch_finish.acquire()
                 relay.set("ctrl-c")
-                switch_finish.release()
 
         switch_timer.cancel()
 
@@ -153,9 +150,9 @@ class cmd_runner:
             except:
                 pass
         if header:
-            self.ui.write(" SWtime Current backend       active in queue enqueued dequeued avgcps   cps")
-            self.ui.write(" ------ --------------------- ------ -------- -------- -------- ------ -----")
-        self.ui.write(" %-6s %-21s %6i %8i %8i %8i %6i %5i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_stats.c_endpoints/2, conn_q.qsize(), cbpx_stats.c_qc, cbpx_stats.c_dqc, cbpx_stats.a_qc, cbpx_stats.s_qc))
+            self.ui.write(" SWtime Current backend       active in queue ->cps cps->")
+            self.ui.write(" ------ --------------------- ------ -------- ----- -----")
+        self.ui.write(" %-6s %-21s %6i %8i %5i %5i" % (sw, cbpx_connector.backends[cbpx_connector.backend][0] + ":" + str(cbpx_connector.backends[cbpx_connector.backend][1]), cbpx_stats.c_endpoints/2, conn_q.qsize(), cbpx_stats.s_qc, cbpx_stats.s_dqc))
 
     # --------------------------------------------------------------------
     def cmd_stats(self, args):
@@ -210,7 +207,6 @@ class cmd_runner:
         self.ui.write(" Max open conns      : %i" % int(params.max_open_conns))
         self.ui.write(" listen() backlog    : %i" % int(params.listen_backlog))
         self.ui.write(" Network buffer      : %i bytes" % int(params.net_buffer_size))
-        self.ui.write(" Safe switch delay   : %2.2f s" % float(params.switch_delay))
         self.ui.write(" Switch loop wait    : %2.2f s" % float(params.switch_loop_wait))
         self.ui.write(" Log file            : %s" % params.log_file)
         self.ui.write(" Log level           : %s" % params.log_level)
