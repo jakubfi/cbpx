@@ -4,6 +4,7 @@
 * scream with error if not all data is sent
 * switch script added to 'set' listong options 
 * total enqueued connections added back to stats
+* shutdown() and close() moved outside the lock in cbpx_transporter.remove()
 
 0.4.6
 
