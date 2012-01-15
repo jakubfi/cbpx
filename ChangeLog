@@ -1,3 +1,10 @@
+0.4.7
+
+* GPL-ed
+* scream with error if not all data is sent
+* switch script added to 'set' listong options 
+* total enqueued connections added back to stats
+
 0.4.6
 
 * 5 connectors as a workaround for lost packets during TCP handshake

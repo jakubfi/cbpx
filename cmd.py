@@ -1,3 +1,20 @@
+#  Copyright (c) 2011-2012 Jakub Filipowicz <jakubf@gmail.com>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#  Foundation, Inc.,
+#  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+
 import time
 import readline
 import logging
@@ -150,10 +167,10 @@ class cmd_runner:
             except:
                 pass
         if header:
-            self.ui.write(" SWtime Current backend       active in queue ->cps cps->")
-            self.ui.write(" ------ --------------------- ------ -------- ----- -----")
+            self.ui.write(" SWtime Current backend       active in queue ->cps cps-> q total")
+            self.ui.write(" ------ --------------------- ------ -------- ----- ----- -------")
         (ai, ap) = relay.get_active()
-        self.ui.write(" %-6s %-21s %6i %8i %5i %5i" % (sw, ai + ":" + str(ap), cbpx_stats.c_endpoints/2, conn_q.qsize(), cbpx_stats.s_qc, cbpx_stats.s_dqc))
+        self.ui.write(" %-6s %-21s %6i %8i %5i %5i %7i" % (sw, ai + ":" + str(ap), cbpx_stats.c_endpoints/2, conn_q.qsize(), cbpx_stats.s_qc, cbpx_stats.s_dqc, cbpx_stats.c_qc))
 
     # --------------------------------------------------------------------
     def cmd_stats(self, args):
@@ -209,6 +226,7 @@ class cmd_runner:
         self.ui.write(" listen() backlog    : %i" % int(params.listen_backlog))
         self.ui.write(" Network buffer      : %i bytes" % int(params.net_buffer_size))
         self.ui.write(" Switch loop wait    : %2.2f s" % float(params.switch_loop_wait))
+        self.ui.write(" Switch script       : %s" % params.switch_script)
         self.ui.write(" Log file            : %s" % params.log_file)
         self.ui.write(" Log level           : %s" % params.log_level)
         self.ui.write("")

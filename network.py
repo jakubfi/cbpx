@@ -1,3 +1,20 @@
+#  Copyright (c) 2011-2012 Jakub Filipowicz <jakubf@gmail.com>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#  Foundation, Inc.,
+#  51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+
 import os
 import time
 import logging
@@ -100,7 +117,7 @@ class cbpx_transporter(Thread):
 
         self.poller.register(fd_client, self.EPOLL_EVENTS)
         self.poller.register(fd_backend, self.EPOLL_EVENTS)
-        
+
         cbpx_stats.c_endpoints = len(self.fd)
 
         self.conn_lock.release()
@@ -115,15 +132,15 @@ class cbpx_transporter(Thread):
 
         self.poller.unregister(f)
         del self.fd[f]
+        cbpx_stats.c_endpoints = len(self.fd)
+
+        self.conn_lock.release()
+
         try:
             sock.shutdown(SHUT_RDWR)
             sock.close()
         except:
             pass
-
-        cbpx_stats.c_endpoints = len(self.fd)
-
-        self.conn_lock.release()
 
     # --------------------------------------------------------------------
     def remove_dead(self):
@@ -177,7 +194,10 @@ class cbpx_transporter(Thread):
                     else:
                         # pass the data to the other end
                         try:
-                            self.fd[f][1].send(data)
+                            # TODO: retransmission should be handled better
+                            sent = self.fd[f][1].send(data)
+                            if sent != len(data):
+                                l.error("APOCALYPSE! Transmitted only %i bytes of received %i bytes" % (sent, len(data)))
                         except Exception, e:
                             l.warning("Exception %s while transmitting data: %s" % (type(e), str(e)))
                             self.dead.add(self.fd[f][2])
@@ -197,7 +217,7 @@ class cbpx_transporter(Thread):
             # since we're removing connections only here, we may as well check for switch finale here
             if (cbpx_stats.c_endpoints == 0) and (not relay.isSet()):
                 switch_finalize()
- 
+
 
 # ------------------------------------------------------------------------
 class cbpx_listener(Thread):

@@ -7,12 +7,8 @@ features:
 
 bugs:
 
-* 'set' nie wyświetla skryptu, który będzie uruchomiony przy switchu
-* nieblokujący read() i write()
-* wywalić socket.close() i .shutdown() poza locka w transporter.remove()
-* 'sprzątacz' połączeń?
-* sprawdzać ile send wysłał danych
-* dodać całkowitą ilość połączeń obsłużonych przez proxy do statystyk
+* nieblokujący read() i write() (?)
+* retry jesli send() wyslal mniej danych niz odebralismy
 
 kosmetyka:
 
