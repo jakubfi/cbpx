@@ -11,6 +11,7 @@ fi
 git clone $REPO -b $VERSION cbpx-$VERSION
 rm -rf cbpx-$VERSION/.git
 rm -f cbpx-$VERSION/cbpx-release
+rm -f cbpx-$VERSION/TODO
 rm -f cbpx-$VERSION/naparzacz
 rm -f cbpx-$VERSION/cbpx_threads.dia
 sed -i s/__cbpx__version__/$VERSION/g cbpx-$VERSION/utils.py
