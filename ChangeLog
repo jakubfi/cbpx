@@ -14,7 +14,7 @@
 * added RelayGate, reworked locking on relay
 * backends moved to RelayGate
 
-0.4.4 (internal)
+0.4.4
 
 * transporter loop optimized by removing few calls and one unnecessary check
 * switch exec script added
@@ -23,11 +23,11 @@
 * stats: removed enqueued/dequeued
 * removed conn_lock lock
 
-0.4.3 (internal)
+0.4.3
 
 * fixed call to Queue.qsize()
 
-0.4.2 (internal)
+0.4.2
 
 * dead connection removing moved outside the epoll() loop
 * release tool #-es l.debug lines for performance ;-)
