@@ -1,3 +1,7 @@
+0.4.6
+
+* 5 connectors as a workaround for lost packets during TCP handshake
+
 0.4.5
 
 * added RelayGate, reworked locking on relay

@@ -28,9 +28,13 @@ class cbpx:
 
         # start connector
 
+        self.connectors = []
         try:
-            l.debug("Proxy setting up Connector")
-            self.connector = cbpx_connector(params.active_ip, params.active_port, params.standby_ip, params.standby_port, self.transporter)
+            l.debug("Proxy setting up Connectors")
+            # start 5 connectors to make sure connections are processed even if TCP connection to the backend
+            # stalls due to lost syn/syn-ack/ack packet
+            for i in range(0, 5):
+                self.connectors.append(cbpx_connector(params.active_ip, params.active_port, params.standby_ip, params.standby_port, self.transporter))
         except Exception, e:
             raise RuntimeError("Error setting up connector: %s" % str(e))
 
@@ -62,11 +66,13 @@ class cbpx:
         l.debug("Proxy joining listener")
         self.listener.join()
 
-        l.debug("Proxy closing connector")
-        try: self.connector.close()
-        except: pass
-        l.debug("Proxy joining connector")
-        self.connector.join()
+        l.debug("Proxy closing connectors")
+        for c in self.connectors:
+            try: c.close()
+            except: pass
+        l.debug("Proxy joining connectors")
+        for c in self.connectors:
+            c.join()
 
         l.debug("Proxy closing stats")
         try: self.stats.close()
@@ -90,8 +96,9 @@ class cbpx:
         self.stats.start()
         l.debug("Proxy starting transporter")
         self.transporter.start()
-        l.debug("Proxy starting connector")
-        self.connector.start()
+        l.debug("Proxy starting connectors")
+        for c in self.connectors:
+            c.start()
         l.debug("Proxy starting listener")
         self.listener.start()
         l.debug("Proxy starting command interface")

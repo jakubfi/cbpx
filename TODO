@@ -7,6 +7,13 @@ features:
 
 bugs:
 
+* 'set' nie wyświetla skryptu, który będzie uruchomiony przy switchu
+* nieblokujący read() i write()
+* wywalić socket.close() i .shutdown() poza locka w transporter.remove()
+* 'sprzątacz' połączeń?
+* sprawdzać ile send wysłał danych
+* dodać całkowitą ilość połączeń obsłużonych przez proxy do statystyk
+
 kosmetyka:
 
 * przy wychodzeniu: ERROR [Listener ] (network::run) [L:128] Error accepting connection: (22, 'Invalid argument')
