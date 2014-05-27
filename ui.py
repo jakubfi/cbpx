@@ -55,7 +55,7 @@ class ui:
 class ui_readline(ui):
 
     # --------------------------------------------------------------------
-    def _print_logo(self):
+    def __print_logo(self):
         print """        __
  .----.|  |--..-----..--.--.
  |  __||  _  ||  _  ||_   _|
@@ -64,7 +64,7 @@ class ui_readline(ui):
 """ % __version__
 
     # --------------------------------------------------------------------
-    def _complete(self, text, state):
+    def __complete(self, text, state):
         for cmd in COMMANDS:
             if cmd.startswith(text):
                 if not state:
@@ -74,13 +74,13 @@ class ui_readline(ui):
     # --------------------------------------------------------------------
     def __init__(self):
         l.debug("Starting readline user interface")
-        self._print_logo()
+        self.__print_logo()
         print " Ready for your commands, my master.\n"
 
     # --------------------------------------------------------------------
     def read(self):
         readline.parse_and_bind("tab: complete")
-        readline.set_completer(self._complete)
+        readline.set_completer(self.__complete)
         line = raw_input("cbpx> ")
         return line
 
