@@ -24,6 +24,8 @@ from socket import *
 from utils import params, l
 from utils import __version__
 
+COMMANDS = ["help", "quit", "threads", "switch", "stats", "set", "hello"]
+
 # ------------------------------------------------------------------------
 class ui:
 
@@ -53,7 +55,7 @@ class ui:
 class ui_readline(ui):
 
     # --------------------------------------------------------------------
-    def print_logo(self):
+    def __print_logo(self):
         print """        __
  .----.|  |--..-----..--.--.
  |  __||  _  ||  _  ||_   _|
@@ -62,13 +64,23 @@ class ui_readline(ui):
 """ % __version__
 
     # --------------------------------------------------------------------
+    def __complete(self, text, state):
+        for cmd in COMMANDS:
+            if cmd.startswith(text):
+                if not state:
+                    return cmd
+                else:
+                    state -= 1
+    # --------------------------------------------------------------------
     def __init__(self):
         l.debug("Starting readline user interface")
-        self.print_logo()
+        self.__print_logo()
         print " Ready for your commands, my master.\n"
 
     # --------------------------------------------------------------------
     def read(self):
+        readline.parse_and_bind("tab: complete")
+        readline.set_completer(self.__complete)
         line = raw_input("cbpx> ")
         return line
 
