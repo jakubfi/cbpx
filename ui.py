@@ -75,6 +75,12 @@ class ui_readline(ui):
     def __init__(self):
         l.debug("Starting readline user interface")
         self.__print_logo()
+        try:
+            readline.read_history_file(params.history_file)
+        except IOError:
+            file(params.history_file, "w")
+            l.info("Create history file. File path: %s" % 
+                (params.history_file))
         print " Ready for your commands, my master.\n"
 
     # --------------------------------------------------------------------
@@ -82,6 +88,7 @@ class ui_readline(ui):
         readline.parse_and_bind("tab: complete")
         readline.set_completer(self.__complete)
         line = raw_input("cbpx> ")
+        readline.write_history_file(params.history_file)
         return line
 
     # --------------------------------------------------------------------
