@@ -28,6 +28,9 @@ class my_params:
 
     settable = {'switch_max_time':[float, 0, 10], 'max_queued_conns':[int, 10, 10000], 'max_open_conns':[int, 10, 65536], 'switch_loop_wait':[float, 0.1, 1], 'net_buffer_size':[int, 1024, 65536]}
 
+    # other
+    history_file = ".cbpx_history"
+    
     # network:
     port = 0
     rc_port = 0
